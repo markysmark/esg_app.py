@@ -1,17 +1,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from fpdf import FPDF
 from datetime import datetime, timedelta
-import io
 
-# --- 1. GLOBAL BRAND & DATABASE CONFIGURATION ---
+# --- 1. GLOBAL BRAND CONFIG (Easy to Update) ---
 BRAND_NAVY = "#0A1A2A"
 BRAND_GOLD = "#C5A059"
-BRAND_BG = "#F9F9F7"
+BRAND_BG   = "#F9F9F7"
 
-# Hierarchical Database: Client -> Agent -> Site
-CLIENT_PORTFOLIOS = {
+# --- 2. MANDATORY DATA STRUCTURE ---
+# We define this BEFORE the UI to prevent "Variable Not Defined" errors
+CLIENT_DATA = {
     "British Land": {
         "Agents": ["CBRE", "Savills"],
         "Buildings": ["The Leadenhall Building", "Broadgate Tower", "Paddington Central"]
@@ -26,137 +25,94 @@ CLIENT_PORTFOLIOS = {
     }
 }
 
-REGULATORY_ALERTS = [
-    {"date": "Oct 2026", "title": "Mandatory Digital Waste Tracking (DWT)", "risk": "CRITICAL"},
-    {"date": "May 2026", "title": "UK Sustainability Reporting Standards (SRS) v2", "risk": "HIGH"},
-    {"date": "Jan 2027", "title": "MEES EPC 'B' Trajectory Deadline", "risk": "MEDIUM"}
-]
+# --- 3. UI INITIALIZATION ---
+st.set_page_config(
+    page_title="JPC Portfolio Intelligence", 
+    layout="wide", 
+    initial_sidebar_state="expanded"  # FORCES SIDEBAR TO BE OPEN
+)
 
-# --- 2. ENGINE CORE: SCORING & PDF ---
-def calculate_indicator_score(val, target, date_observed, confidence=0.8):
-    if val <= 0: return 35  # Penalty for Missing Data
-    base_s = min(val / target, 1.0) * 100
-    age = (datetime.now() - date_observed).days
-    decay = (age // 30) * 5 # -5 pts per month
-    return max(0, (base_s * (0.5 + 0.5 * confidence)) - decay)
-
-class JPC_Report(FPDF):
-    def header(self):
-        self.set_fill_color(10, 26, 42) # Navy
-        self.rect(0, 0, 210, 20, 'F')
-        self.set_text_color(255, 255, 255)
-        self.set_font("Arial", 'B', 10)
-        self.set_xy(10, 5)
-        self.cell(0, 10, "STRATEGIC ESG AUDIT | JPC BY SAMSIC 2026", ln=True)
-
-# --- 3. UI INITIALIZATION & CSS INJECTION ---
-st.set_page_config(page_title="JPC Portfolio Intelligence", layout="wide")
-
+# Inject Global CSS for JPC Luxury Theme
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {BRAND_BG}; color: #1A1A1A; }}
-    [data-testid="stSidebar"] {{ background-color: {BRAND_NAVY} !important; min-width: 300px; }}
+    [data-testid="stSidebar"] {{ background-color: {BRAND_NAVY} !important; min-width: 320px !important; }}
     [data-testid="stSidebar"] * {{ color: white !important; }}
     h1, h2, h3 {{ color: {BRAND_NAVY} !important; font-family: 'Georgia', serif; }}
-    [data-testid="stMetric"] {{
+    div[data-testid="stMetric"] {{
         background-color: white; border: 1px solid #E0E0DB;
         border-radius: 12px; padding: 20px;
     }}
     .stButton>button {{
-        background-color: {BRAND_GOLD}; color: white; border-radius: 4px;
-        padding: 0.6rem 2.5rem; font-weight: 600; width: 100%; border: none;
+        background-color: {BRAND_GOLD}; color: white; border: none;
+        border-radius: 4px; padding: 0.6rem 2.5rem; font-weight: 600; width: 100%;
     }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR: THE HIERARCHY SELECTOR ---
+# --- 4. THE SIDEBAR (WHERE THE DROPDOWNS LIVE) ---
+# Using the 'with' block ensures these are tied to the sidebar
 with st.sidebar:
-    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=140)
-    st.markdown("### 🏢 Portfolio Control")
+    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=150)
+    st.markdown("## 🏢 PORTFOLIO CONTROL")
     
-    # Hierarchical Dropdowns
-    client_choice = st.selectbox("Select Client", list(CLIENT_PORTFOLIOS.keys()))
+    # DROPDOWN 1: CLIENT
+    client_choice = st.selectbox("Select Asset Owner", list(CLIENT_DATA.keys()))
     
-    agent_list = CLIENT_PORTFOLIOS[client_choice]["Agents"]
+    # DROPDOWN 2: AGENT (Filtered by Client)
+    agent_list = CLIENT_DATA[client_choice]["Agents"]
     agent_choice = st.selectbox("Managing Agent", agent_list)
     
-    site_list = CLIENT_PORTFOLIOS[client_choice]["Buildings"]
+    # DROPDOWN 3: SITE (Filtered by Client)
+    site_list = CLIENT_DATA[client_choice]["Buildings"]
     site_choice = st.selectbox("Operational Site", site_list)
     
     st.divider()
-    st.subheader("🛠️ Admin Tools")
-    if st.button("➕ Register New Site"):
-        st.toast("Redirecting to Site Onboarding...")
+    st.info(f"📍 **Site:** {site_choice}\n👤 **Agent:** {agent_choice}")
     
-    # PDF Trigger
     if st.button("📥 EXPORT QUARTERLY PACK"):
-        st.success("PDF Engine Initialized. Generating 12-page report...")
+        st.toast("Generating 2026 ESG Executive Report...")
 
-# --- 5. MAIN DASHBOARD CONTENT ---
+# --- 5. MAIN CONTENT AREA ---
 st.markdown(f"""
-    <div style="background-color: {BRAND_NAVY}; padding: 12px; border-left: 6px solid {BRAND_GOLD}; border-radius: 8px; margin-bottom: 25px;">
-        <span style="color: {BRAND_GOLD}; font-weight: bold;">🛡️ 2026 REGULATORY ALERT:</span>
-        <span style="color: white; margin-left: 15px;">Upcoming <b>{REGULATORY_ALERTS[0]['title']}</b> effective <b>Oct 2026</b>. Action required for site compliance.</span>
+    <div style="background-color: {BRAND_NAVY}; padding: 15px; border-left: 6px solid {BRAND_GOLD}; border-radius: 8px; margin-bottom: 25px;">
+        <span style="color: {BRAND_GOLD}; font-weight: bold;">🛡️ 2026 REGULATORY WATCH:</span>
+        <span style="color: white; margin-left: 15px;">Monitoring <b>Oct 2026 DWT Mandate</b> for {client_choice} assets.</span>
     </div>
 """, unsafe_allow_html=True)
 
-tab_perf, tab_giveback, tab_wellbeing, tab_risk = st.tabs([
-    "📈 Site Performance", "🤝 JPC Give Back", "👥 Staff Wellbeing", "💰 Financial Risk"
-])
+tab1, tab2, tab3 = st.tabs(["📊 Performance", "🤝 Give Back", "💰 Financial Risk"])
 
-# --- TAB 1: PERFORMANCE ---
-with tab_perf:
+with tab1:
     st.header(f"Performance Scorecard: {site_choice}")
     
-    
-    # Dynamic Scoring Logic
-    e_val = calculate_indicator_score(82, 100, datetime.now() - timedelta(days=5))
-    s_val = calculate_indicator_score(90, 100, datetime.now() - timedelta(days=45))
-    g_val = calculate_indicator_score(0, 100, datetime.now()) # Missing data penalty
-
     c1, c2, c3 = st.columns(3)
-    c1.metric("ESG Rating", f"{(e_val*0.4 + s_val*0.4 + g_val*0.2):.1f}/100", delta="-3.2 (Missing Gov Data)")
-    c2.metric("Portfolio Rank", "Top 12%", delta="Agent Leader")
-    c3.metric("Data Confidence", "78%", delta="Action Required", delta_color="inverse")
+    c1.metric("ESG Score", "84.2/100", delta="+2.1 vs Last Q")
+    c2.metric("Staff Wellbeing", "92%", delta="Strong")
+    c3.metric("Data Confidence", "88%", delta="High")
 
-    # Radar Visual
+    # Radar Chart
     fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=[e_val, s_val, g_val], theta=['Env', 'Social', 'Gov'], fill='toself', line_color=BRAND_GOLD))
+    fig.add_trace(go.Scatterpolar(r=[80, 95, 70], theta=['Env', 'Social', 'Gov'], fill='toself', line_color=BRAND_GOLD))
     fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: GIVE BACK (SOCIAL VALUE) ---
-with tab_giveback:
-    st.header("JPC Give Back & Community Impact")
-    st.write("Tracking real-time Social Value (S) credits as defined in the JPC 2026 Sustainability Strategy.")
-    
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Community Hours", "142 Hrs", delta="+8% vs Last Q")
-    m2.metric("Charitable Raised", "£12,400", delta="Target £15k")
-    m3.metric("Social Value Credits", "45 pts", delta="Gold Status")
+with tab2:
+    st.header("JPC Give Back & Social Value")
+    st.write("Community impact credits for this site.")
+    st.metric("Social Value Hours", "145 Hrs", delta="S-Pillar Impact")
 
-# --- TAB 3: WELLBEING ---
-with tab_wellbeing:
-    st.header("Wellbeing & Stability Index")
+with tab3:
+    st.header("2026 Asset Protection (Financial)")
     
-    absence = st.slider("Current Absence Rate (%)", 0.0, 10.0, 3.1)
-    w_index = 100 - (absence * 7)
-    st.metric("Staff Wellbeing Score", f"{w_index:.1f}/100")
-    if w_index > 80:
-        st.success("🟢 Stable Workforce: High retention supports operational continuity.")
-
-# --- TAB 4: FINANCIAL RISK ---
-with tab_risk:
-    st.header("2026 Financial Risk Protection")
-    
-    fig_waterfall = go.Figure(go.Waterfall(
+    st.write(f"Protecting {site_choice} against 2026 legal liabilities.")
+    fig2 = go.Figure(go.Waterfall(
         orientation = "v",
-        measure = ["relative", "relative", "relative", "total"],
-        x = ["DWT Penalties", "Staff Turnover Costs", "Carbon Taxes", "Total Value Protected"],
-        y = [150000, 42000, 15000, 0],
+        measure = ["relative", "relative", "total"],
+        x = ["DWT Penalty", "Turnover Cost", "Value Protected"],
+        y = [150000, 42000, 0],
         increasing = {"marker":{"color": BRAND_GOLD}},
         totals = {"marker":{"color": BRAND_NAVY}}
     ))
-    fig_waterfall.update_layout(title="Capital at Risk vs Mitigation (2026)", paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig_waterfall, use_container_width=True)
-    st.info("**Strategic Insight:** JPC's integrated compliance model protects £207k in annual site liability.")
+    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig2, use_container_width=True)
