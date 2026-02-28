@@ -1,118 +1,129 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+import io
 
-# --- 1. GLOBAL BRAND CONFIG (Easy to Update) ---
+# --- DATABASE ENGINE (SQLite Persistence) ---
+Base = declarative_base()
+engine = create_engine('sqlite:///jpc_esg_data.db')
+Session = sessionmaker(bind=engine)
+session = Session()
+
+class ESGEntry(Base):
+    __tablename__ = 'esg_entries'
+    id = Column(Integer, primary_key=True)
+    client = Column(String)
+    agent = Column(String)
+    building = Column(String)
+    dimension = Column(String) # E, S, or G
+    metric_name = Column(String)
+    value = Column(Float)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    note = Column(Text)
+
+Base.metadata.create_all(engine)
+
+# --- THEME & CONFIG ---
 BRAND_NAVY = "#0A1A2A"
 BRAND_GOLD = "#C5A059"
 BRAND_BG   = "#F9F9F7"
 
-# --- 2. MANDATORY DATA STRUCTURE ---
-# We define this BEFORE the UI to prevent "Variable Not Defined" errors
-CLIENT_DATA = {
-    "British Land": {
-        "Agents": ["CBRE", "Savills"],
-        "Buildings": ["The Leadenhall Building", "Broadgate Tower", "Paddington Central"]
-    },
-    "Landsec": {
-        "Agents": ["Knight Frank"],
-        "Buildings": ["20 Fenchurch Street", "One New Change"]
-    },
-    "Mitsubishi Estate": {
-        "Agents": ["JLL", "Savills"],
-        "Buildings": ["8 Bishopsgate", "Paternoster Square"]
-    }
+st.set_page_config(page_title="JPC Portfolio Intelligence", layout="wide", initial_sidebar_state="expanded")
+
+# --- DATA HIERARCHY ---
+CLIENT_STRUCTURE = {
+    "British Land": {"Agents": ["CBRE", "Savills"], "Buildings": ["The Leadenhall Building", "Broadgate Tower"]},
+    "Landsec": {"Agents": ["Knight Frank"], "Buildings": ["20 Fenchurch Street", "One New Change"]},
+    "Mitsubishi Estate": {"Agents": ["JLL"], "Buildings": ["8 Bishopsgate"]}
 }
 
-# --- 3. UI INITIALIZATION ---
-st.set_page_config(
-    page_title="JPC Portfolio Intelligence", 
-    layout="wide", 
-    initial_sidebar_state="expanded"  # FORCES SIDEBAR TO BE OPEN
-)
-
-# Inject Global CSS for JPC Luxury Theme
+# --- UI STYLING ---
 st.markdown(f"""
     <style>
-    .stApp {{ background-color: {BRAND_BG}; color: #1A1A1A; }}
-    [data-testid="stSidebar"] {{ background-color: {BRAND_NAVY} !important; min-width: 320px !important; }}
+    .stApp {{ background-color: {BRAND_BG}; }}
+    [data-testid="stSidebar"] {{ background-color: {BRAND_NAVY} !important; min-width: 300px; }}
     [data-testid="stSidebar"] * {{ color: white !important; }}
-    h1, h2, h3 {{ color: {BRAND_NAVY} !important; font-family: 'Georgia', serif; }}
-    div[data-testid="stMetric"] {{
-        background-color: white; border: 1px solid #E0E0DB;
-        border-radius: 12px; padding: 20px;
-    }}
-    .stButton>button {{
-        background-color: {BRAND_GOLD}; color: white; border: none;
-        border-radius: 4px; padding: 0.6rem 2.5rem; font-weight: 600; width: 100%;
-    }}
+    div[data-testid="stMetric"] {{ background-color: white; border: 1px solid #E0E0DB; border-radius: 8px; padding: 15px; }}
+    .stButton>button {{ background-color: {BRAND_GOLD}; color: white; width: 100%; border: none; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. THE SIDEBAR (WHERE THE DROPDOWNS LIVE) ---
-# Using the 'with' block ensures these are tied to the sidebar
+# --- SIDEBAR: NAVIGATION & INPUT ---
 with st.sidebar:
     st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=150)
-    st.markdown("## 🏢 PORTFOLIO CONTROL")
+    st.header("Portfolio Control")
     
-    # DROPDOWN 1: CLIENT
-    client_choice = st.selectbox("Select Asset Owner", list(CLIENT_DATA.keys()))
-    
-    # DROPDOWN 2: AGENT (Filtered by Client)
-    agent_list = CLIENT_DATA[client_choice]["Agents"]
-    agent_choice = st.selectbox("Managing Agent", agent_list)
-    
-    # DROPDOWN 3: SITE (Filtered by Client)
-    site_list = CLIENT_DATA[client_choice]["Buildings"]
-    site_choice = st.selectbox("Operational Site", site_list)
+    # Persistent Dropdowns
+    client_choice = st.selectbox("Client", list(CLIENT_STRUCTURE.keys()), key="client_sel")
+    agent_choice = st.selectbox("Managing Agent", CLIENT_STRUCTURE[client_choice]["Agents"], key="agent_sel")
+    building_choice = st.selectbox("Building", CLIENT_STRUCTURE[client_choice]["Buildings"], key="bldg_sel")
     
     st.divider()
-    st.info(f"📍 **Site:** {site_choice}\n👤 **Agent:** {agent_choice}")
-    
-    if st.button("📥 EXPORT QUARTERLY PACK"):
-        st.toast("Generating 2026 ESG Executive Report...")
+    st.subheader("Data Entry")
+    with st.form("data_entry_form", clear_on_submit=True):
+        dim = st.selectbox("Dimension", ["Environmental", "Social", "Governance"])
+        met = st.text_input("Metric Name (e.g., Waste %)")
+        val = st.number_input("Value", value=0.0)
+        txt = st.text_area("Notes")
+        submitted = st.form_submit_button("Save to Database")
+        
+        if submitted:
+            new_entry = ESGEntry(
+                client=client_choice, agent=agent_choice, building=building_choice,
+                dimension=dim, metric_name=met, value=val, note=txt
+            )
+            session.add(new_entry)
+            session.commit()
+            st.success("Data Persisted Locally")
 
-# --- 5. MAIN CONTENT AREA ---
-st.markdown(f"""
-    <div style="background-color: {BRAND_NAVY}; padding: 15px; border-left: 6px solid {BRAND_GOLD}; border-radius: 8px; margin-bottom: 25px;">
-        <span style="color: {BRAND_GOLD}; font-weight: bold;">🛡️ 2026 REGULATORY WATCH:</span>
-        <span style="color: white; margin-left: 15px;">Monitoring <b>Oct 2026 DWT Mandate</b> for {client_choice} assets.</span>
-    </div>
-""", unsafe_allow_html=True)
+# --- MAIN DASHBOARD ---
+st.title(f"🛡️ {building_choice} Intelligence")
 
-tab1, tab2, tab3 = st.tabs(["📊 Performance", "🤝 Give Back", "💰 Financial Risk"])
+# 2026 Regulation Banner
+st.warning(f"**Regulatory Alert:** Oct 2026 Digital Waste Tracking compliance required for {agent_choice} portfolio.")
+
+# Fetch stored data for charts
+db_data = pd.read_sql(session.query(ESGEntry).filter(ESGEntry.building == building_choice).statement, engine)
+
+tab1, tab2, tab3 = st.tabs(["📊 Performance Radar", "🤝 Social Value (Give Back)", "💰 Risk Analysis"])
 
 with tab1:
-    st.header(f"Performance Scorecard: {site_choice}")
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("ESG Score", "84.2/100", delta="+2.1 vs Last Q")
-    c2.metric("Staff Wellbeing", "92%", delta="Strong")
-    c3.metric("Data Confidence", "88%", delta="High")
+    col1, col2, col3 = st.columns(3)
+    latest_val = db_data['value'].iloc[-1] if not db_data.empty else 0
+    col1.metric("Latest Input Metric", f"{latest_val}", delta="Live from DB")
+    col2.metric("Wellbeing Index", "92/100")
+    col3.metric("Compliance Status", "Ready")
 
-    # Radar Chart
+    # Radar Chart Logic
+    
     fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=[80, 95, 70], theta=['Env', 'Social', 'Gov'], fill='toself', line_color=BRAND_GOLD))
+    # Average scores or placeholder if DB is empty
+    r_values = [80, 85, 70] if db_data.empty else [
+        db_data[db_data['dimension']=='Environmental']['value'].mean() or 0,
+        db_data[db_data['dimension']=='Social']['value'].mean() or 0,
+        db_data[db_data['dimension']=='Governance']['value'].mean() or 0
+    ]
+    fig.add_trace(go.Scatterpolar(r=r_values, theta=['Env', 'Social', 'Gov'], fill='toself', line_color=BRAND_GOLD))
     fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
-    st.header("JPC Give Back & Social Value")
-    st.write("Community impact credits for this site.")
-    st.metric("Social Value Hours", "145 Hrs", delta="S-Pillar Impact")
+    st.header("JPC Give Back Tracker")
+    
+    if not db_data.empty:
+        st.dataframe(db_data[db_data['dimension'] == 'Social'], use_container_width=True)
+    else:
+        st.info("No Social Value data recorded yet.")
 
 with tab3:
-    st.header("2026 Asset Protection (Financial)")
+    st.header("Financial Risk: Inaction Cost")
     
-    st.write(f"Protecting {site_choice} against 2026 legal liabilities.")
-    fig2 = go.Figure(go.Waterfall(
-        orientation = "v",
-        measure = ["relative", "relative", "total"],
-        x = ["DWT Penalty", "Turnover Cost", "Value Protected"],
-        y = [150000, 42000, 0],
-        increasing = {"marker":{"color": BRAND_GOLD}},
-        totals = {"marker":{"color": BRAND_NAVY}}
+    fig_water = go.Figure(go.Waterfall(
+        orientation = "v", x = ["Fines", "Turnover", "Protected"], y = [150000, 42000, 0],
+        increasing = {"marker":{"color": BRAND_GOLD}}, totals = {"marker":{"color": BRAND_NAVY}}
     ))
-    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig_water, use_container_width=True)
