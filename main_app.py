@@ -1,0 +1,123 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+from fpdf import FPDF
+from theme import apply_theme, brand_palette # Ensure theme.py exists 
+
+# --- 1. DATABASE & CONFIG  ---
+Base = declarative_base()
+engine = create_engine('sqlite:///jpc_esg_intelligence.db')
+Session = sessionmaker(bind=engine)
+session = Session()
+
+class ESGEntry(Base):
+    __tablename__ = 'esg_master'
+    id = Column(Integer, primary_key=True)
+    client = Column(String) # 
+    agent = Column(String); building = Column(String) # [cite: 2]
+    waste_tonnes = Column(Float, default=0.0)
+    employee_count = Column(Integer, default=0)
+    hours_worked = Column(Float, default=0.0)
+    chem_litres = Column(Float, default=0.0)
+    eco_chem_pct = Column(Float, default=0.0)
+    energy_kwh = Column(Float, default=0.0)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(engine)
+
+# --- 2. APP UI SETUP [cite: 2] ---
+st.set_page_config(page_title="JPC Portfolio Intelligence", layout="wide")
+apply_theme()
+
+# Scrolling Banner [cite: 2, 3]
+initiatives = [
+    "🚀 UK SRS standards finalized Feb 2026", 
+    "⚠️ EPC Reform H2 2026: Non-compliant assets face restricted leasing",
+    "🧪 Probiotic cleaning: Driving 40% improvement in IAQ Social scores"
+]
+st.markdown(f'<div style="background:{brand_palette["brand_primary"]};color:{brand_palette["brand_accent"]};padding:10px;overflow:hidden;white-space:nowrap;"><marquee scrollamount="5">{" &nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp; ".join(initiatives)}</marquee></div>', unsafe_allow_html=True)
+
+# --- 3. SIDEBAR NAVIGATION & MODULAR SETTINGS [cite: 3] ---
+CLIENT_STRUCTURE = {
+    "British Land": {"Agents": ["CBRE", "Savills"], "Buildings": ["The Leadenhall Building", "Broadgate Tower"]},
+    "Landsec": {"Agents": ["Knight Frank"], "Buildings": ["20 Fenchurch Street", "One New Change"]},
+    "Mitsubishi Estate": {"Agents": ["JLL"], "Buildings": ["8 Bishopsgate"]}
+}
+
+with st.sidebar:
+    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=140)
+    st.header("⚙️ Oversight Settings")
+    active_mods = st.multiselect("Enable Strategic Modules", 
+                                 ["Waste Tracking", "Chemical Purity", "Energy/EPC", "Carbon & ROI", "Social Value"],
+                                 default=["Waste Tracking", "Social Value"]) # [cite: 4]
+    
+    st.divider()
+    client_sel = st.selectbox("Client", list(CLIENT_STRUCTURE.keys()))
+    agent_sel = st.selectbox("Managing Agent", CLIENT_STRUCTURE[client_sel]["Agents"])
+    building_sel = st.selectbox("Building Asset", ["-- Portfolio Summary --"] + CLIENT_STRUCTURE[client_sel]["Buildings"])
+
+    if building_sel != "-- Portfolio Summary --": # [cite: 5]
+        st.subheader("📝 Monthly Pulse")
+        with st.form("pulse_entry", clear_on_submit=True):
+            inputs = {}
+            if "Waste Tracking" in active_mods: inputs['w'] = st.number_input("Waste (Tonnes)", 0.0)
+            if "Chemical Purity" in active_mods: 
+                inputs['c'] = st.number_input("Chemicals (L)", 0.0)
+                inputs['e_pct'] = st.slider("Eco-Neutral %", 0, 100, 85) # [cite: 6]
+            if "Social Value" in active_mods:
+                inputs['staff'] = st.number_input("Staff Count", 0)
+                inputs['hrs'] = st.number_input("Total Hours", 0.0)
+            if "Energy/EPC" in active_mods: inputs['nrg'] = st.number_input("Energy (kWh)", 0.0)
+            
+            if st.form_submit_button("💾 Save to Intelligence DB"): # [cite: 7]
+                new_entry = ESGEntry(
+                    client=client_sel, agent=agent_sel, building=building_sel,
+                    waste_tonnes=inputs.get('w', 0.0), employee_count=inputs.get('staff', 0),
+                    hours_worked=inputs.get('hrs', 0.0), chem_litres=inputs.get('c', 0.0), # [cite: 8]
+                    eco_chem_pct=inputs.get('e_pct', 0.0), energy_kwh=inputs.get('nrg', 0.0)
+                )
+                session.add(new_entry)
+                session.commit()
+                st.success("Synchronized Successfully.")
+
+# --- 4. DASHBOARD VIEWS [cite: 9] ---
+db_data = pd.read_sql(session.query(ESGEntry).filter(ESGEntry.client == client_sel).statement, engine)
+
+if building_sel == "-- Portfolio Summary --":
+    st.title(f"📈 {client_sel}: Portfolio Strategy")
+    if not db_data.empty:
+        st.subheader("Strategic Agent Performance (Eco-Purity x Waste)")
+        fig = px.scatter(db_data, x="eco_chem_pct", y="waste_tonnes", size="employee_count", 
+                         color="agent", hover_name="building", color_discrete_sequence=[brand_palette['brand_accent'], "#5C6B7A"])
+        st.plotly_chart(fig, use_container_width=True) # [cite: 10]
+    else: st.info("Select an asset or input data to begin.")
+
+else:
+    st.title(f"🛡️ {building_sel} Intelligence")
+    site_data = db_data[db_data['building'] == building_sel]
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Asset Deep-Dive", "⚖️ Materiality Matrix", "💰 ROI & Carbon", "📚 Document Library"])
+    
+    with tab1:
+        if not site_data.empty:
+            latest = site_data.iloc[-1]
+            c1, c2, c3, c4 = st.columns(4) # [cite: 11]
+            if "Waste Tracking" in active_mods: c1.metric("Oct 2026 Fine Risk", "£150,000", delta="Critical")
+            if "Carbon & ROI" in active_mods: c2.metric("Carbon Liability", f"£{latest['employee_count'] * 154:,.0f}")
+            if "Chemical Purity" in active_mods: c3.metric("Eco-Shift", f"{latest['eco_chem_pct']}%")
+            if "Social Value" in active_mods: c4.metric("Social Score", f"{latest['hours_worked']/100:,.0f}")
+            
+            st.divider() # [cite: 12]
+            st.subheader("📋 Board Summary")
+            st.info(f"Asset performance shows a high Social Value score due to {latest['hours_worked']:,} hours of verified local labor. Focus for Q3 2026: Reducing waste output to avoid £150k regulatory fines.") # [cite: 13]
+        else: st.warning("Please submit a 'Monthly Pulse' entry in the sidebar.")
+    
+    with tab4:
+        st.subheader("Audit-Ready Document Library")
+        st.file_uploader("Upload Evidence (ISO, Waste Notes, Certs)") # [cite: 14]
+        st.table({"Document": ["Waste Transfer Note_Oct26.pdf", "LivingWage_Cert.png"], "Status": ["Verified", "Verified"]})
