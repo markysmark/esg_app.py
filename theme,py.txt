@@ -1,0 +1,51 @@
+import streamlit as st
+import plotly.io as pio
+import plotly.graph_objects as go
+
+# JPC Brand Palette 
+brand_palette = {
+    "brand_primary": "#0A1A2A",    # Deep Navy
+    "brand_accent": "#C5A059",     # Metallic Gold
+    "bg": "#F9F9F7",               # Bone Neutral
+    "surface": "#FFFFFF",          # Card Background
+    "text_primary": "#1A1A1A",     # Charcoal
+    "border": "#E0E0DB",           # Subtle Border
+}
+
+def apply_theme():
+    # Inject Global CSS [cite: 2, 12]
+    st.markdown(f"""
+    <style>
+        .stApp {{ background-color: {brand_palette['bg']}; color: {brand_palette['text_primary']}; }}
+        h1, h2, h3 {{ color: {brand_palette['brand_primary']} !important; font-family: 'Georgia', serif; }}
+        
+        /* Metric Styling [cite: 5, 12] */
+        [data-testid="stMetricValue"] {{ color: {brand_palette['brand_primary']} !important; font-size: 1.8rem !important; }}
+        div[data-testid="stMetric"] {{
+            background-color: {brand_palette['surface']};
+            border: 1px solid {brand_palette['border']};
+            border-radius: 8px; padding: 1.2rem;
+        }}
+        
+        /* Sidebar Styling [cite: 7, 8, 12] */
+        [data-testid="stSidebar"] {{ background-color: {brand_palette['brand_primary']} !important; }}
+        [data-testid="stSidebar"] * {{ color: white !important; }}
+        
+        /* Button & Tab Styling [cite: 6, 12] */
+        .stButton>button {{
+            background-color: {brand_palette['brand_accent']};
+            color: white; border-radius: 4px; font-weight: 600; width: 100%;
+        }}
+        .stTabs [aria-selected="true"] {{ background-color: {brand_palette['brand_accent']} !important; color: white !important; }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Plotly Template [cite: 9, 12]
+    template = go.layout.Template()
+    template.layout = {
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "font": {"color": brand_palette['text_primary'], "family": "Arial"},
+        "colorway": [brand_palette['brand_accent'], "#5C6B7A", "#A0AEC0"],
+    }
+    pio.templates.default = template

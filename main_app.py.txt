@@ -1,0 +1,121 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+from fpdf import FPDF
+from theme import apply_theme, brand_palette
+
+# --- 1. DATABASE & CONFIG ---
+Base = declarative_base()
+engine = create_engine('sqlite:///jpc_master_intelligence.db')
+Session = sessionmaker(bind=engine)
+session = Session()
+
+class ESGEntry(Base):
+    __tablename__ = 'esg_master'
+    id = Column(Integer, primary_key=True)
+    client = Column(String); agent = Column(String); building = Column(String)
+    waste_tonnes = Column(Float, default=0.0)
+    employee_count = Column(Integer, default=0)
+    hours_worked = Column(Float, default=0.0)
+    chem_litres = Column(Float, default=0.0)
+    eco_chem_pct = Column(Float, default=0.0)
+    energy_kwh = Column(Float, default=0.0)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(engine)
+
+# --- 2. PDF GENERATOR (BOARD READY) ---
+class JPC_Report(FPDF):
+    def header(self):
+        self.set_fill_color(10, 26, 42)
+        self.rect(0, 0, 210, 40, 'F')
+        self.set_text_color(197, 160, 89)
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 20, 'JPC STRATEGIC PORTFOLIO REPORT 2026', 0, 1, 'C')
+        self.ln(10)
+
+def generate_pdf(client_name, df):
+    pdf = JPC_Report()
+    pdf.add_page()
+    pdf.set_text_color(26, 26, 26)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, f"Portfolio Summary: {client_name}", ln=True)
+    
+    # Financial/Risk Summary
+    pdf.set_font('Arial', '', 11)
+    total_waste = df['waste_tonnes'].sum()
+    total_staff = df['employee_count'].sum()
+    pdf.multi_cell(0, 8, f"Total Portfolio Waste: {total_waste:.2f} Tonnes\n"
+                         f"Total On-Site Personnel: {total_staff}\n"
+                         f"Combined Oct 2026 Fine Liability: £{len(df['building'].unique()) * 150000:,}")
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- 3. UI SETUP ---
+st.set_page_config(page_title="JPC Portfolio Intelligence", layout="wide")
+apply_theme()
+
+CLIENT_STRUCTURE = {
+    "British Land": {"Agents": ["CBRE", "Savills"], "Buildings": ["The Leadenhall Building", "Broadgate Tower"]},
+    "Landsec": {"Agents": ["Knight Frank"], "Buildings": ["20 Fenchurch Street", "One New Change"]},
+    "Mitsubishi Estate": {"Agents": ["JLL"], "Buildings": ["8 Bishopsgate"]}
+}
+
+with st.sidebar:
+    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=140)
+    st.header("⚙️ Oversight Settings")
+    active_mods = st.multiselect("Enable Strategic Modules", 
+                                 ["Waste Tracking", "Chemical Purity", "Energy/EPC", "Carbon & ROI", "Social Value"],
+                                 default=["Waste Tracking", "Social Value"])
+    
+    st.divider()
+    client_sel = st.selectbox("Client", list(CLIENT_STRUCTURE.keys()))
+    agent_sel = st.selectbox("Managing Agent", CLIENT_STRUCTURE[client_sel]["Agents"])
+    building_sel = st.selectbox("Building Asset", ["-- Portfolio Summary --"] + CLIENT_STRUCTURE[client_sel]["Buildings"])
+
+    if building_sel != "-- Portfolio Summary --":
+        with st.form("pulse_entry", clear_on_submit=True):
+            st.subheader("📝 Monthly Pulse")
+            w = st.number_input("Waste (Tonnes)", 0.0)
+            staff = st.number_input("Staff Count", 50)
+            hrs = st.number_input("Total Hours", 0.0)
+            if st.form_submit_button("💾 Save & Sync Dashboard"):
+                new_entry = ESGEntry(client=client_sel, agent=agent_sel, building=building_sel,
+                                     waste_tonnes=w, employee_count=staff, hours_worked=hrs)
+                session.add(new_entry)
+                session.commit()
+                st.success("Synchronized Successfully.")
+                st.rerun()
+
+# --- 4. DASHBOARD LOGIC ---
+db_data = pd.read_sql(session.query(ESGEntry).filter(ESGEntry.client == client_sel).statement, engine)
+
+if building_sel == "-- Portfolio Summary --":
+    st.title(f"📈 {client_sel}: Portfolio Strategy")
+    if not db_data.empty:
+        # Cross-Agent Benchmarking
+        st.subheader("Strategic Agent Performance (Eco-Purity x Waste)")
+        fig = px.scatter(db_data, x="eco_chem_pct", y="waste_tonnes", size="employee_count", 
+                         color="agent", hover_name="building")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Combined Report Generator
+        if st.button("🚀 Generate Combined Portfolio PDF"):
+            pdf_bytes = generate_pdf(client_sel, db_data)
+            st.download_button("📥 Download Board Summary", pdf_bytes, f"{client_sel}_Portfolio_2026.pdf")
+    else: st.info("Input data in the sidebar to begin aggregation.")
+else:
+    st.title(f"🛡️ {building_sel} Intelligence")
+    # Asset drill-down tabs (Deep-Dive, Materiality, etc.)
+    site_data = db_data[db_data['building'] == building_sel]
+    if not site_data.empty:
+        latest = site_data.iloc[-1]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Oct 2026 Fine Risk", "£150,000", delta="Critical")
+        c2.metric("Carbon Liability", f"£{latest['employee_count'] * 154:,.0f}")
+        c3.metric("Social Score", f"{latest['hours_worked']/100:,.1f}")
+        c4.metric("Last Updated", latest['timestamp'].strftime('%Y-%m-%d'))
