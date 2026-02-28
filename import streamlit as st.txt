@@ -1,0 +1,128 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+from theme import apply_theme, brand_palette
+
+# Initialize UI
+apply_theme()
+
+# --- MODULE 1: DATA SEEDING (Catalog) ---
+INDICATOR_CATALOG = {
+    "waste_diversion": {"dim": "E", "target": 100, "weight": 0.4, "norm": "HIGHER_BETTER"},
+    "energy_intensity": {"dim": "E", "target": 50, "weight": 0.6, "norm": "LOWER_BETTER"},
+    "retention_rate": {"dim": "S", "target": 100, "weight": 0.5, "norm": "HIGHER_BETTER"},
+    "training_hours": {"dim": "S", "target": 20, "weight": 0.5, "norm": "HIGHER_BETTER"},
+    "audit_score": {"dim": "G", "target": 100, "weight": 1.0, "norm": "HIGHER_BETTER"}
+}
+
+OBLIGATIONS = {
+    "Data Centre": ["PUE Efficiency Mandate", "Digital Waste API (Oct 26)", "ISO 50001"],
+    "Skyscraper": ["EPC B Pathway (2028)", "Vertical Safety Audit", "DWT API"],
+    "Mixed-use": ["UK SRS Standards", "Living Wage Accreditation", "Modern Slavery Act"]
+}
+
+# --- MODULE 2: SCORING ENGINE (Math Model) ---
+def score_engine(val, target, norm_type, observed_at, confidence=0.7):
+    # Normalization
+    if norm_type == "HIGHER_BETTER":
+        s = min(val / target, 1.0) * 100
+    else: # LOWER_BETTER
+        s = max(0, 1 - (val / target)) * 100
+    
+    # Time Decay (Stale data penalty)
+    age = (datetime.now() - observed_at).days
+    decay = (age // 30) * 5
+    
+    # Final Score with Confidence weighting
+    return max(0, (s * (0.5 + 0.5 * confidence)) - decay)
+
+# --- 3. UI TABS & MODULES ---
+st.title("🛡️ JPC Intelligence Platform")
+st.sidebar.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=150)
+
+with st.sidebar:
+    st.header("🏢 Site Context")
+    building_type = st.selectbox("Asset Type", list(OBLIGATIONS.keys()))
+    site_name = st.text_input("Operational Site", "The Shard")
+    m_agent = st.selectbox("Managing Agent", ["CBRE", "Savills", "Knight Frank", "JLL"])
+
+tab_score, tab_wellbeing, tab_obligations, tab_recs = st.tabs([
+    "📊 Portfolio Scoring", "👥 People & Wellbeing", "📜 Obligations Engine", "🎯 Next Best Actions"
+])
+
+# --- TAB: SCORING ENGINE ---
+with tab_score:
+    st.header(f"ESG Scorecard: {site_name}")
+    
+    # Live Math logic per building
+    e_score = score_engine(85, 100, "HIGHER_BETTER", datetime.now() - timedelta(days=5))
+    s_score = score_engine(92, 100, "HIGHER_BETTER", datetime.now() - timedelta(days=45)) # Stale
+    g_score = score_engine(0, 100, "HIGHER_BETTER", datetime.now()) # Missing
+    
+    final_score = (e_score * 0.35) + (s_score * 0.40) + (g_score * 0.25)
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Overall ESG Grade", f"{final_score:.1f}/100", delta="-4.2 pts (Stale Data)")
+    col2.metric("Agent Ranking", "#2 of 14", delta="Top Quartile")
+    col3.metric("Critical Alerts", "1 Missing / 1 Stale", delta_color="inverse")
+
+    # ESG Radar Chart
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=[e_score, s_score, g_score],
+        theta=['Env', 'Social', 'Gov'],
+        fill='toself', name='Current Site', line_color=brand_palette['brand_accent']
+    ))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), paper_bgcolor=brand_palette['bg'])
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- TAB: WELLBEING ENGINE ---
+with tab_wellbeing:
+    st.header("Staff Wellbeing Risk Index")
+    
+    
+    # Indicators
+    absence = st.slider("Absence Rate (%)", 0.0, 15.0, 3.5)
+    training = st.number_input("Training Hours per FTE", value=12)
+    sentiment = st.select_slider("Engagement Sentiment", ["Critical", "Low", "Neutral", "Strong", "Exceptional"], value="Strong")
+    
+    # Calculate Wellbeing Index
+    w_index = 100 - (absence * 5) + (training * 0.5)
+    st.subheader(f"Wellbeing Index: {w_index:.1f}")
+    
+    if w_index < 70:
+        st.error("⚠️ Elevated Wellbeing Risk detected. Interventions recommended.")
+    else:
+        st.success("✨ High Staff Stability detected. Positively impacts Social (S) pillar.")
+
+# --- TAB: OBLIGATIONS ENGINE ---
+with tab_obligations:
+    st.header("Compliance Obligations Engine")
+    applicable = OBLIGATIONS[building_type]
+    
+    for ob in applicable:
+        col_l, col_r = st.columns([3, 1])
+        col_l.markdown(f"**{ob}**")
+        status = "✅ Complete" if "API" not in ob else "⏳ Missing Data"
+        col_r.write(status)
+    
+    st.divider()
+    st.write("### Regulatory Risk Timeline")
+    
+
+# --- TAB: RECOMMENDATIONS (REVENUE ENGINE) ---
+with tab_recs:
+    st.header("Next Best Actions & Commercial Bundles")
+    
+    if g_score < 40:
+        with st.container():
+            st.markdown("#### 📦 Governance Assurance Pack")
+            st.write("Urgent: Digital Waste Tracking (Oct 26 Mandate) data entry missing.")
+            st.button("Activate Data Integration")
+            
+    if s_score < 70:
+        with st.container():
+            st.markdown("#### 📦 Training & Wellbeing Package")
+            st.write("Insight: Lower scores in Social pillar due to stale training data.")
+            st.button("Launch Refresher Program")

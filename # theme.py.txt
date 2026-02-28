@@ -1,0 +1,33 @@
+# theme.py
+import streamlit as st
+
+brand_palette = {
+    "brand_primary": "#0A1A2A",    # Deep Navy/Charcoal
+    "brand_accent": "#C5A059",     # Warm Metallic Gold
+    "bg": "#F9F9F7",               # Off-white neutral
+    "surface": "#FFFFFF",          # Card background
+    "text": "#1A1A1A",
+    "border": "#E0E0DB",
+    "status_good": "#287D3C",
+    "status_bad": "#C53030"
+}
+
+def apply_theme():
+    st.markdown(f"""
+    <style>
+        .stApp {{ background-color: {brand_palette['bg']}; color: {brand_palette['text']}; }}
+        [data-testid="stSidebar"] {{ background-color: {brand_palette['brand_primary']}; color: white; }}
+        h1, h2, h3 {{ color: {brand_palette['brand_primary']} !important; font-family: 'Georgia', serif; }}
+        [data-testid="stMetric"] {{
+            background-color: {brand_palette['surface']}; 
+            border: 1px solid {brand_palette['border']};
+            border-radius: 12px; padding: 20px;
+        }}
+        .stButton>button {{
+            background-color: {brand_palette['brand_accent']}; color: white; border: none;
+            border-radius: 4px; padding: 0.6rem 2rem; font-weight: 600;
+        }}
+        .stTabs [data-baseweb="tab-list"] {{ gap: 30px; }}
+        .stTabs [data-baseweb="tab"] {{ font-weight: 600; font-size: 1.1rem; }}
+    </style>
+    """, unsafe_allow_html=True)
