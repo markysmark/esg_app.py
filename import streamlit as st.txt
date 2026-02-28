@@ -1,95 +1,152 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
 import plotly.graph_objects as go
-from theme import apply_theme, brand_palette
+from datetime import datetime, timedelta
+from fpdf import FPDF
+import io
 
-# 1. INITIALIZE PLATFORM
-apply_theme()
+# --- 1. GLOBAL THEME & BRANDING ---
+BRAND_NAVY = "#0A1A2A"
+BRAND_GOLD = "#C5A059"
+BRAND_BG = "#F9F9F7"
 
-# 2. DATA MODELS & SEED DATA
-BUILDING_TEMPLATES = {
-    "Data Centre": {"obligations": ["PUE Mandate", "Digital Waste API"], "weights": {"E": 0.6, "S": 0.2, "G": 0.2}},
-    "High-rise Office": {"obligations": ["EPC B Pathway", "Living Wage", "DWT API"], "weights": {"E": 0.4, "S": 0.4, "G": 0.2}},
-    "Healthcare": {"obligations": ["Hygiene Compliance", "Social Value Act"], "weights": {"E": 0.2, "S": 0.5, "G": 0.3}}
+def apply_custom_styling():
+    st.markdown(f"""
+        <style>
+        .stApp {{ background-color: {BRAND_BG}; color: #1A1A1A; }}
+        [data-testid="stSidebar"] {{ background-color: {BRAND_NAVY}; color: white; }}
+        h1, h2, h3 {{ color: {BRAND_NAVY} !important; font-family: 'Georgia', serif; }}
+        [data-testid="stMetric"] {{
+            background-color: white; border: 1px solid #E0E0DB;
+            border-radius: 12px; padding: 20px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+        }}
+        .stButton>button {{
+            background-color: {BRAND_GOLD}; color: white; border-radius: 4px; border: none;
+            padding: 0.6rem 2.5rem; font-weight: 600; width: 100%;
+        }}
+        .stTabs [data-baseweb="tab-list"] {{ gap: 30px; }}
+        .stTabs [data-baseweb="tab"] {{ font-weight: 600; font-size: 1.1rem; color: #1A1A1A; }}
+        </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. CORE LOGIC ENGINES (SCORING & OBLIGATIONS) ---
+CLIENT_PORTFOLIOS = {
+    "British Land": ["The Leadenhall Building", "Broadgate Tower", "Paddington Central"],
+    "Landsec": ["20 Fenchurch Street", "One New Change"],
+    "Mitsubishi Estate": ["8 Bishopsgate", "Paternoster Square"]
 }
 
-# 3. MODULE 1 & 2: OBLIGATIONS & SCORING ENGINES
-def calculate_indicator_score(val, target, norm_type, date_observed, confidence=0.8):
-    # Normalization logic
-    if norm_type == "HIGHER_BETTER":
-        base_s = min(val / target, 1.0) * 100
-    else:
-        base_s = max(0, 1 - (val / target)) * 100
-    
-    # Time Decay (Penalty: -5 pts per 30 days)
-    days_old = (datetime.now() - date_observed).days
-    decay = (days_old // 30) * 5
-    
-    # Evidence confidence penalty (Alpha=0.5)
-    return max(0, (base_s * (0.5 + 0.5 * confidence)) - decay)
+MANAGING_AGENTS = ["CBRE", "Savills", "Knight Frank", "JLL"]
 
-# 4. APP LAYOUT & SIDEBAR
-render_regulatory_banner() # From previous iteration
+def calculate_esg_score(val, target, date_observed, confidence=0.8):
+    """0-100 Score with Time-Decay (-5pts/30 days) and Missing Penalties."""
+    if val <= 0: return 35 # Missing Data Penalty
+    base = min(val / target, 1.0) * 100
+    age = (datetime.now() - date_observed).days
+    decay = (age // 30) * 5
+    return max(0, (base * (0.5 + 0.5 * confidence)) - decay)
 
+# --- 3. APP INITIALIZATION & REGULATORY BANNER ---
+st.set_page_config(page_title="JPC Portfolio Intelligence", layout="wide")
+apply_custom_styling()
+
+st.markdown(f"""
+    <div style="background-color: {BRAND_NAVY}; padding: 12px; border-left: 6px solid {BRAND_GOLD}; border-radius: 8px; margin-bottom: 25px;">
+        <span style="color: {BRAND_GOLD}; font-weight: bold;">🛡️ 2026 HORIZON SCAN:</span>
+        <span style="color: white; margin-left: 15px;">Upcoming <b>October 2026 Digital Waste Tracking (DWT)</b> mandate requires immediate API integration for compliance.</span>
+    </div>
+""", unsafe_allow_html=True)
+
+# --- 4. SIDEBAR (ADMIN & HIERARCHY) ---
 with st.sidebar:
-    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=120)
-    client_name = st.selectbox("Portfolio Client", ["British Land", "Landsec", "Mitsubishi Estate"])
-    building_type = st.selectbox("Asset Type", list(BUILDING_TEMPLATES.keys()))
-    site_name = st.text_input("Operational Site", "The Shard")
+    st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=140)
+    st.divider()
+    
+    # Hierarchy Selectors
+    client_choice = st.selectbox("Select Portfolio Owner", list(CLIENT_PORTFOLIOS.keys()))
+    agent_choice = st.selectbox("Managing Agent", MANAGING_AGENTS)
+    site_choice = st.selectbox("Target Operational Site", CLIENT_PORTFOLIOS[client_choice])
+    
+    st.divider()
+    st.subheader("🛠️ Admin Controls")
+    if st.button("➕ Register New Client/Site"):
+        st.toast("Redirecting to Admin Site Onboarding...")
+    if st.button("📥 EXPORT QUARTERLY EXEC PACK"):
+        st.success("PDF Engine Initialized. Generating 12-page report...")
 
-# 5. MODULAR TABS
-tab_score, tab_wellbeing, tab_obligations, tab_actions = st.tabs([
-    "📊 Asset Scoring", "👥 People & Wellbeing", "📜 Obligations Engine", "🎯 Recommendations"
+# --- 5. MAIN DASHBOARD TABS ---
+tab_perf, tab_giveback, tab_wellbeing, tab_finance = st.tabs([
+    "📊 Portfolio Performance", "🤝 JPC Give Back", "👥 Staff Wellbeing", "💰 Financial Protection"
 ])
 
-# --- TAB: SCORING ---
-with tab_score:
-    st.header(f"ESG Scorecard: {site_name}")
+# --- TAB: PERFORMANCE ---
+with tab_perf:
+    st.header(f"Performance Audit: {site_choice}")
     
-    
-    # Calculate mock scores using engine
-    e_score = calculate_indicator_score(85, 100, "HIGHER_BETTER", datetime.now() - timedelta(days=5))
-    s_score = calculate_indicator_score(92, 100, "HIGHER_BETTER", datetime.now() - timedelta(days=65)) # Stale
-    g_score = 35 # Penalty for Missing Data
-    
-    final_score = (e_score * 0.4) + (s_score * 0.4) + (g_score * 0.2)
-    
+    # Scoring Simulation
+    e_score = calculate_esg_score(88, 100, datetime.now() - timedelta(days=5))
+    s_score = calculate_esg_score(92, 100, datetime.now() - timedelta(days=45)) # Decay
+    g_score = calculate_esg_score(0, 100, datetime.now()) # Penalty
+    final_score = (e_score * 0.35) + (s_score * 0.40) + (g_score * 0.25)
+
     c1, c2, c3 = st.columns(3)
-    c1.metric("Overall Building Grade", f"{final_score:.1f}/100", delta="-4.5 (Stale S-Data)")
-    c2.metric("Missing Data Risk", "1 Critical Item", delta_color="inverse")
-    c3.metric("Evidence Confidence", "82%", delta="Target 90%")
+    c1.metric("Current ESG Grade", f"{final_score:.1f}/100", delta="-4.2 (Stale S-Data)")
+    c2.metric("Portfolio Rank", f"Top 15%", delta="Managing Agent Leader")
+    c3.metric("Data Confidence", "82%", delta="Target 90%")
+
+    # Radar Visual
+    fig_radar = go.Figure()
+    fig_radar.add_trace(go.Scatterpolar(
+        r=[e_score, s_score, g_score], theta=['Environmental', 'Social', 'Governance'],
+        fill='toself', name=site_choice, line_color=BRAND_GOLD
+    ))
+    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_radar, use_container_width=True)
+    
+
+# --- TAB: GIVE BACK (SOCIAL VALUE) ---
+with tab_giveback:
+    st.header("JPC Give Back Tracker")
+    st.write("Quantitative tracking of Social Value initiatives as featured on JPC's corporate social strategy.")
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Community Hours", "142 Hrs", delta="+12 vs Last Q")
+    m2.metric("Charitable Fundraising", "£12,850", delta="Target £15k")
+    m3.metric("Eco-Workshops", "6 Events", delta="S-Pillar Impact High")
+
+    with st.expander("📝 Log New Give Back Event (Admin Only)"):
+        st.text_input("Event Name")
+        st.selectbox("Category", ["Education/Mentoring", "Charity/Donation", "Community Volunteering"])
+        if st.button("Log Social Value Credit"):
+            st.toast("Success: 5 points added to Site Social Score.")
 
 # --- TAB: WELLBEING ---
 with tab_wellbeing:
-    st.header("Workforce Wellbeing Index")
+    st.header("Wellbeing & Stability Index")
+    absence = st.slider("Absence Rate (%)", 0.0, 10.0, 2.8)
+    w_index = 100 - (absence * 8)
     
-    
-    # Wellbeing Risk Index Indicators
-    absence = st.slider("Absence Rate (%)", 0.0, 15.0, 3.2)
-    training = st.number_input("Training Hours/FTE", value=14)
-    sentiment = st.select_slider("Engagement Sentiment", ["Critical", "Low", "Neutral", "Strong", "Exceptional"], value="Strong")
-    
-    w_index = 100 - (absence * 6) + (training * 0.5)
-    st.subheader(f"Wellbeing Risk Score: {w_index:.1f}")
-    
+    st.metric("Staff Wellbeing Index", f"{w_index:.1f}/100")
     if w_index > 85:
-        st.success("✨ High Stability: Workforce resilience supports long-term contract performance.")
-    else:
-        st.warning("⚠️ Warning: Wellbeing metrics indicate potential turnover risk.")
-
-# --- TAB: OBLIGATIONS ---
-with tab_obligations:
-    st.header("Obligations Tracking")
-    template = BUILDING_TEMPLATES[building_type]
+        st.success("✨ Exceptional Stability: Low churn risk protects asset continuity.")
     
-    for ob in template['obligations']:
-        status = "✅ Complete" if "Living" in ob else "⏳ Missing Data"
-        st.write(f"**{ob}**: {status}")
 
-# --- TAB: RECOMMENDATIONS ---
-with tab_actions:
-    st.header("Next Best Actions")
-    # Logic driven by Scoring Engine gaps
-    if g_score < 40:
-        st.info("#### 📦 Governance Assurance Pack\n**Why it matters:** Oct 2026 Digital Waste Mandate.\n**Action:** Integrate API waste tracking.\n**Commercial Path:** JPC Data-Led Waste Program.")
+# --- TAB: FINANCIAL PROTECTION ---
+with tab_finance:
+    st.header("2026 Financial Risk Exposure")
+    st.write("Measuring the capital protected through JPC's compliance leadership.")
+    
+    # Financial Waterfall
+    fig_waterfall = go.Figure(go.Waterfall(
+        orientation = "v",
+        measure = ["relative", "relative", "relative", "total"],
+        x = ["DWT Fines", "Staff Hiring Costs", "Carbon Levies", "Total Protection"],
+        y = [150000, 45000, 12000, 0],
+        increasing = {"marker":{"color": BRAND_GOLD}},
+        totals = {"marker":{"color": BRAND_NAVY}}
+    ))
+    fig_waterfall.update_layout(title="Asset Value Protection (£)", paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_waterfall, use_container_width=True)
+    
+    
+    st.info("**Strategic Guidance:** Avoided costs from October 2026 mandates currently exceed the contract premium by 210%.")
