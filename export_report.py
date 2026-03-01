@@ -275,9 +275,14 @@ def render_export_interface():
         )
     
     with col2:
-        agent_options = []
         if client_sel:
             agent_options = st.session_state.clients_data.get(client_sel, {}).get("Agents", [])
+        else:
+            # Allow selecting any agent from the database when no client is chosen
+            db_agents = session.query(ESGEntry.agent).filter(
+                ESGEntry.agent.isnot(None)
+            ).distinct().all()
+            agent_options = sorted(set(a[0] for a in db_agents if a[0]))
         
         agent_sel = st.selectbox(
             "Agent (Optional)",
@@ -287,7 +292,18 @@ def render_export_interface():
     
     with col3:
         building_options = []
-        if client_sel:
+        if agent_sel:
+            # Populate buildings from the database for the selected agent
+            q_buildings = session.query(ESGEntry.building).filter(
+                ESGEntry.agent == agent_sel,
+                ESGEntry.building.isnot(None)
+            )
+            if client_sel:
+                q_buildings = q_buildings.filter(ESGEntry.client == client_sel)
+            building_options = sorted(set(
+                b[0] for b in q_buildings.distinct().all() if b[0]
+            ))
+        elif client_sel:
             building_options = st.session_state.clients_data.get(client_sel, {}).get("Buildings", [])
         
         building_sel = st.selectbox(

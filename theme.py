@@ -127,14 +127,19 @@ def apply_theme():
         /* Input fields */
         .stTextInput > div > div > input,
         .stNumberInput > div > div > input,
-        .stSelectbox > div > div {
+        .stSelectbox > div > div,
+        .stDateInput > div > div > input,
+        .stTextArea > div > div > textarea {
             border-radius: 6px;
             border: 1px solid #D0D0D0;
             padding: 10px;
+            color: #1A1A1A !important;
+            background-color: #FFFFFF !important;
         }
         
         .stTextInput > div > div > input:focus,
-        .stNumberInput > div > div > input:focus {
+        .stNumberInput > div > div > input:focus,
+        .stTextArea > div > div > textarea:focus {
             border-color: #F5A623;
             box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.1);
         }
