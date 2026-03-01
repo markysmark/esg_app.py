@@ -6,7 +6,7 @@ A **comprehensive, corporate-grade Environmental, Social & Governance (ESG) mana
 
 An ESG AI assistant leverages the power of Artificial Intelligence (AI) to help companies conduct research, extract insights, and benchmark ESG initiatives against those of industry peers.
 
-By applying the capabilities of Large Language Models (LLMs) to sustainability reports, other ESG documents, and financial filings, an ESG AI assistant like Nasdaq Sustainable Lens® helps corporate teams bring breadth and speed to ESG intelligence.
+By applying the capabilities of Large Language Models (LLMs) to sustainability reports, other ESG documents, and financial filings, platforms such as Nasdaq Sustainable Lens® illustrate how an ESG AI assistant can help corporate teams bring breadth and speed to ESG intelligence.
 
 Tasks, such as ESG benchmarking and gap analysis, that previously required extensive manual effort can typically be performed in a fraction of the time to exceptionally high standards.
 
