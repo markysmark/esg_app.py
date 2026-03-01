@@ -61,6 +61,17 @@ docker build -t esg_intelligence:latest .
 docker run -it -p 8501:8501 -v $(pwd)/data:/app esg_intelligence:latest
 ```
 
+### CI/CD – Docker Hub publishing
+
+The `Build and push Docker image` workflow automatically publishes to Docker Hub on every push to `main`. It requires two GitHub repository secrets to be configured:
+
+| Secret name | Description |
+|---|---|
+| `DOCKERHUB_USERNAME` | Your Docker Hub username |
+| `DOCKERHUB_TOKEN` | A Docker Hub [access token](https://docs.docker.com/security/for-developers/access-tokens/) |
+
+Add these in **Settings → Secrets and variables → Actions → New repository secret**. Without them the login and push steps are skipped automatically.
+
 ## 📚 Using the App
 
 > **New in‑app instructions:** click the **❓ Help** button in the top navigation bar to view this README (and more) directly inside the running application.
