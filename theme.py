@@ -43,6 +43,16 @@ def apply_theme():
         [data-testid="stSidebar"] label {
             color: white;
         }
+
+        /* Ensure sidebar headings remain visible on the dark sidebar background */
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] h4,
+        [data-testid="stSidebar"] h5,
+        [data-testid="stSidebar"] h6 {
+            color: white !important;
+        }
         
         [data-testid="stSidebar"] .stSelectbox, 
         [data-testid="stSidebar"] .stTextInput,

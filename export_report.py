@@ -6,7 +6,7 @@ Handles advanced export in multiple formats and custom report generation.
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from main_app import (
     ESGEntry,
@@ -38,7 +38,8 @@ def get_esg_data_for_export(client=None, agent=None, building=None, start_date=N
     if start_date:
         q = q.filter(ESGEntry.timestamp >= start_date)
     if end_date:
-        q = q.filter(ESGEntry.timestamp <= end_date)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+        q = q.filter(ESGEntry.timestamp <= end_dt)
     
     entries = q.order_by(ESGEntry.timestamp.desc()).all()
     
@@ -315,10 +316,10 @@ def render_export_interface():
     col1, col2 = st.columns(2)
     
     with col1:
-        start_date = st.date_input("Start Date", key='export_start')
+        start_date = st.date_input("Start Date", value=datetime.now().date() - timedelta(days=365), key='export_start')
     
     with col2:
-        end_date = st.date_input("End Date", key='export_end')
+        end_date = st.date_input("End Date", value=datetime.now().date(), key='export_end')
     
     st.divider()
     
