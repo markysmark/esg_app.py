@@ -1489,7 +1489,9 @@ def main():
     # Page config
     apply_theme()
 
-    # Initialise navigation state so the first render doesn't raise AttributeError
+    # Initialise session state so re-runs in a new session don't raise AttributeError
+    if 'clients_data' not in st.session_state:
+        st.session_state.clients_data = load_clients_data()
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'Home'
     
