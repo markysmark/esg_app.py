@@ -1488,6 +1488,10 @@ def main():
     """Main application"""
     # Page config
     apply_theme()
+
+    # Initialise navigation state so the first render doesn't raise AttributeError
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = 'Home'
     
     # Top banner - Clean layout
     st.title("🌍 ESG Intelligence Platform")
