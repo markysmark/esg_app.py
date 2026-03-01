@@ -172,10 +172,45 @@ def load_clients_data():
         with open(CLIENTS_FILE, 'r') as f:
             return json.load(f)
     else:
+        # pre-populated clients data; users can add more clients via the UI
         default_data = {
-            "UK Top Agents": {
-                "Agents": ["CBRE", "Savills", "JLL", "Knight Frank", "Cushman & Wakefield"],
-                "Buildings": ["One Churchill Place", "Centre Point", "30 St Mary Axe", "Cheapside House", "The Shard"]
+            "Top Agents": {
+                # This pseudo-client exists purely to list popular managing agents.
+                # Users are free to add their own clients and then associate agents
+                # with them using the "Add Items" tab.
+                "Agents": [
+                    "Savills – Global full-service property management, asset & investment managers.",
+                    "CBRE – World’s largest commercial property services and management firm.",
+                    "JLL – Major London and UK commercial management provider.",
+                    "Knight Frank – Deep London commercial asset management and advisory network.",
+                    "Cushman & Wakefield – Comprehensive property and facilities management in London.",
+                    "Colliers – Data-led property management and advisory.",
+                    "Avison Young – Property management plus leasing and investment services.",
+                    "BNP Paribas Real Estate – European-scale management with UK/ London operations.",
+                    "Lambert Smith Hampton – Leading commercial real estate manager across UK.",
+                    "SHW – Manages commercial portfolios alongside residential.",
+                    "Mellersh & Harding – London-centric commercial property management specialist.",
+                    "TSP (The Service Providers) – Bespoke commercial asset & property management focused on tenant experience.",
+                    "REM Limited – Asset & property management for premium London real estate (e.g., The Shard).",
+                    "Telereal Trillium (TT Group) – Large UK property owner and manager with London portfolio.",
+                    "Workspace Group – FTSE-listed commercial property manager focused on London SME space.",
+                    "FirstPort – Major UK property services provider including commercial estate components (often mixed-use).",
+                    "Crabtree Property Management – London property manager with residential & commercial interests.",
+                    "RIB (Robert Irving Burns) – Commercial property management across central London.",
+                    "Maunder Taylor – Specialist commercial manager across shops, offices, industrial.",
+                    "Willmotts – Flexible commercial property management solutions.",
+                    "Cluttons – UK commercial & residential property management and strategic asset advice.",
+                    "Prime Property Management – London-oriented property management including commercial premises.",
+                    "Anderson Wilde & Harris (AWH) – Property management specialists in London’s mixed-use sector.",
+                    "Claridges Commercial – Firm with decades of commercial property management experience in London.",
+                    "JCF Property Management – Long-standing London property manager including commercial.",
+                    "Heritage Management Ltd – Member of industry institute with Greater London coverage.",
+                    "Kennedy Mulcare Ltd – London firm listed with professional property institute directory.",
+                    "Kingston Real Estate (Property Management) Ltd – Management firm listed in industry directory.",
+                    "Gateway Property Management – Estate & property manager with operations serving London boroughs.",
+                    "Cadmus Property – Bespoke property management services including mixed-use portfolios."
+                ],
+                "Buildings": []
             },
             "British Land": {
                 "Agents": ["CBRE", "Savills"],
@@ -349,47 +384,28 @@ def perform_quality_checks(send_email=True):
 def check_quality_alerts():
     """UI wrapper: call the headless check and surface banners in Streamlit."""
     findings = perform_quality_checks(send_email=True)
-        # stale clients: classify into 'no data' and 'stale'
-        no_data = []
-        stale_clients = []
-        for client in st.session_state.clients_data.keys():
-            q = session.query(ESGEntry).filter(ESGEntry.client == client).all()
-            if not q:
-                no_data.append(client)
-                continue
-            latest = max(q, key=lambda e: e.timestamp or datetime.min)
-            days = (datetime.utcnow() - (latest.timestamp or datetime.utcnow())).days
-            if days >= STALE_DAYS:
-                stale_clients.append((client, days))
+    stale = findings.get('stale_clients', [])
+    no_data = [c for c, d in stale if d == 'no data']
+    stale_clients = [(c, d) for c, d in stale if d != 'no data']
 
-        # show compact summary rather than one-line per client
-        if no_data or stale_clients:
-            parts = []
+    if no_data or stale_clients:
+        parts = []
+        if no_data:
+            parts.append(f"{len(no_data)} clients have no data")
+        if stale_clients:
+            parts.append(f"{len(stale_clients)} clients with data older than {STALE_DAYS} days")
+        summary = "; ".join(parts)
+        st.info(f"Data freshness issues: {summary}")
+
+        with st.expander("Show data freshness details", expanded=False):
             if no_data:
-                parts.append(f"{len(no_data)} clients have no data")
+                st.write("Clients with no data:")
+                for c in no_data:
+                    st.write(f"- {c}")
             if stale_clients:
-                parts.append(f"{len(stale_clients)} clients with data older than {STALE_DAYS} days")
-            summary = "; ".join(parts)
-            st.info(f"Data freshness issues: {summary}")
-
-            # details in an expander for less noise
-            with st.expander("Show data freshness details", expanded=False):
-                if no_data:
-                    st.write("Clients with no data:")
-                    for c in no_data:
-                        st.write(f"- {c}")
-                if stale_clients:
-                    st.write("Clients with stale data (days since last):")
-                    for c, d in stale_clients:
-                        st.write(f"- {c}: {d} days")
-
-            # send a single email with summary and details if configured
-            email_body = summary + "\n\n"
-            if no_data:
-                email_body += "Clients with no data:\n" + "\n".join(no_data) + "\n\n"
-            if stale_clients:
-                email_body += "Clients with stale data:\n" + "\n".join([f"{c}: {d} days" for c, d in stale_clients])
-            _send_email('ESG Platform: Data Freshness Alert', email_body)
+                st.write("Clients with stale data (days since last):")
+                for c, d in stale_clients:
+                    st.write(f"- {c}: {d} days")
 
 
 # Simple user store / auth (opt-in, minimal)

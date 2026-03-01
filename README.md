@@ -97,9 +97,9 @@ Overview with portfolio statistics, a **data quality grade** (A–F) for the ent
 Export filtered data in CSV, Excel, JSON, or PDF format with custom date ranges and scope.
 
 ### 5. Manage Data
-- View portfolio structure
+- View portfolio structure (a special "Top Agents" entry lists the most common managers so you can start with them)
 - Browse raw ESG records
-- Add clients, agents, buildings
+- Add clients, agents, buildings (you can create new clients anytime via the in‑app form)
 - Manage uploaded evidence documents
 
 ## 📊 ESG Scoring Methodology
