@@ -1,4 +1,4 @@
-2026-03-01 12:08:56.841 
+2026-03-01 12:11:47.973 
 Warning: the config option 'server.enableCORS=false' is not compatible with
 'server.enableXsrfProtection=true'.
 As a result, 'server.enableCORS' is being overridden to 'true'.

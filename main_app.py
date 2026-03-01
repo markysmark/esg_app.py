@@ -673,66 +673,109 @@ def page_management():
     
     with tab5:
         st.subheader("📦 Demo Data Management")
-        st.markdown("Load realistic demo data for Savills to test the platform features.")
+        st.markdown("Load realistic demo data to test the platform features and visualizations.")
         
-        # Check if Savills data exists
+        # Check if demo data exists
         savills_count = session.query(ESGEntry).filter(ESGEntry.agent == 'Savills').count()
+        test_count = session.query(ESGEntry).filter(ESGEntry.client == 'Test Client').count()
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Savills Demo Records", savills_count)
+            st.metric("Savills Records", savills_count)
         
         with col2:
+            st.metric("Test Client Records", test_count)
+        
+        with col3:
             if savills_count > 0:
-                st.success(f"✅ Demo data active ({savills_count} records)")
+                st.success("✅ Savills Active")
             else:
-                st.info("No demo data loaded")
+                st.info("Savills Inactive")
+        
+        with col4:
+            if test_count > 0:
+                st.success("✅ Test Client Active")
+            else:
+                st.info("Test Client Inactive")
         
         st.divider()
         
-        col1, col2 = st.columns(2)
+        tab5_1, tab5_2 = st.tabs(["🏢 Savills (UK Top Agents)", "🧪 Test Client (Diverse)"])
         
-        with col1:
-            st.subheader("🚀 Load Demo Data")
+        with tab5_1:
             st.markdown("""
-            **Includes:**
-            - The Leadenhall Building
-            - Broadgate Tower  
-            - Centre Point
-            - St Pauls House
-            
-            With realistic ESG metrics for testing.
+            **Savills manages 4 buildings with realistic ESG metrics:**
+            - The Leadenhall Building (480 staff, 52,000 kWh)
+            - Broadgate Tower (620 staff, 68,500 kWh)
+            - Centre Point (350 staff, 41,200 kWh)
+            - St Pauls House (520 staff, 58,700 kWh)
             """)
             
-            if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary"):
-                try:
-                    load_savills_demo_data()
-                    st.success("✅ Demo data loaded successfully!")
-                    st.info("View the data in the Dashboard or Raw Data tab")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error loading demo data: {e}")
-        
-        with col2:
-            st.subheader("🗑️ Clear Demo Data")
-            st.markdown("""
-            **Admin action:** Remove all Savills demo records from the database.
+            col1, col2 = st.columns(2)
             
-            This cannot be undone.
-            """)
-            
-            if savills_count > 0:
-                password = st.text_input("Admin password to clear", type="password", key="admin_clear_pwd")
-                if st.button("🗑️ Clear Savills Data", use_container_width=True, type="secondary"):
-                    if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
-                        deleted = clear_savills_demo_data()
-                        st.success(f"✅ Cleared {deleted} demo records")
+            with col1:
+                if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary", key="load_savills"):
+                    try:
+                        load_savills_demo_data()
+                        st.success("✅ Savills demo data loaded successfully!")
+                        st.info("View the data in the Dashboard or Raw Data tab")
                         st.rerun()
-                    else:
-                        st.error("❌ Incorrect admin password")
-            else:
-                st.info("No demo data to clear")
+                    except Exception as e:
+                        st.error(f"Error loading demo data: {e}")
+            
+            with col2:
+                if savills_count > 0:
+                    password = st.text_input("Admin password to clear", type="password", key="admin_clear_savills")
+                    if st.button("🗑️ Clear Savills Data", use_container_width=True, type="secondary", key="clear_savills"):
+                        if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                            deleted = clear_savills_demo_data()
+                            st.success(f"✅ Cleared {deleted} Savills records")
+                            st.rerun()
+                        else:
+                            st.error("❌ Incorrect admin password")
+                else:
+                    st.info("No Savills data to clear")
+        
+        with tab5_2:
+            st.markdown("""
+            **Test Client has 8 buildings across multiple agents with diverse ESG performance:**
+            - Tech Hub Downtown (CBRE) - Strong performer
+            - Innovation Plaza (CBRE) - Excellent eco-chemistry
+            - Green Heights Tower (JLL) - Best in class
+            - Commerce Center East (JLL) - Larger facility
+            - Sustainable Park West (Knight Frank) - Balanced metrics
+            - Executive Plaza South (Knight Frank) - High employee count
+            - Urban Living Complex (Savills) - Mixed metrics
+            - Corporate Crown (Savills) - Average performer
+            
+            Perfect for testing dashboards and comparisons!
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("📥 Load Test Client Data", use_container_width=True, type="primary", key="load_test"):
+                    try:
+                        load_test_client_data()
+                        st.success("✅ Test Client demo data loaded successfully!")
+                        st.info("View the data in the Dashboard or Raw Data tab")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error loading demo data: {e}")
+            
+            with col2:
+                if test_count > 0:
+                    password = st.text_input("Admin password to clear", type="password", key="admin_clear_test")
+                    if st.button("🗑️ Clear Test Client Data", use_container_width=True, type="secondary", key="clear_test"):
+                        if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                            deleted = clear_test_client_data()
+                            st.success(f"✅ Cleared {deleted} Test Client records")
+                            st.rerun()
+                        else:
+                            st.error("❌ Incorrect admin password")
+                else:
+                    st.info("No Test Client data to clear")
 
 
 # ==================== MAIN APP ====================
