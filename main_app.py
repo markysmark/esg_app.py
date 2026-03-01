@@ -349,12 +349,47 @@ def perform_quality_checks(send_email=True):
 def check_quality_alerts():
     """UI wrapper: call the headless check and surface banners in Streamlit."""
     findings = perform_quality_checks(send_email=True)
-    if findings.get('low_portfolio') is not None:
-        pct = findings['low_portfolio']
-        st.warning(f"Data quality alert: portfolio completeness {pct}% below threshold {ALERT_THRESHOLD}%")
-    if findings.get('stale_clients'):
-        lines = [f"{c}: {d} days since last data" for c, d in findings['stale_clients']]
-        st.info("Data freshness issues:\n" + "\n".join(lines))
+        # stale clients: classify into 'no data' and 'stale'
+        no_data = []
+        stale_clients = []
+        for client in st.session_state.clients_data.keys():
+            q = session.query(ESGEntry).filter(ESGEntry.client == client).all()
+            if not q:
+                no_data.append(client)
+                continue
+            latest = max(q, key=lambda e: e.timestamp or datetime.min)
+            days = (datetime.utcnow() - (latest.timestamp or datetime.utcnow())).days
+            if days >= STALE_DAYS:
+                stale_clients.append((client, days))
+
+        # show compact summary rather than one-line per client
+        if no_data or stale_clients:
+            parts = []
+            if no_data:
+                parts.append(f"{len(no_data)} clients have no data")
+            if stale_clients:
+                parts.append(f"{len(stale_clients)} clients with data older than {STALE_DAYS} days")
+            summary = "; ".join(parts)
+            st.info(f"Data freshness issues: {summary}")
+
+            # details in an expander for less noise
+            with st.expander("Show data freshness details", expanded=False):
+                if no_data:
+                    st.write("Clients with no data:")
+                    for c in no_data:
+                        st.write(f"- {c}")
+                if stale_clients:
+                    st.write("Clients with stale data (days since last):")
+                    for c, d in stale_clients:
+                        st.write(f"- {c}: {d} days")
+
+            # send a single email with summary and details if configured
+            email_body = summary + "\n\n"
+            if no_data:
+                email_body += "Clients with no data:\n" + "\n".join(no_data) + "\n\n"
+            if stale_clients:
+                email_body += "Clients with stale data:\n" + "\n".join([f"{c}: {d} days" for c, d in stale_clients])
+            _send_email('ESG Platform: Data Freshness Alert', email_body)
 
 
 # Simple user store / auth (opt-in, minimal)
