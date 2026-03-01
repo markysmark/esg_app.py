@@ -8,20 +8,15 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from io import BytesIO
-import json
 from main_app import (
-    ESGEntry, ScoreSnapshot, ReportRun, ActionLog, EvidenceRegister,
+    ESGEntry,
     session, compute_esg_scores, grade_data_quality
 )
 
 try:
-    from reportlab.lib.pagesizes import letter, A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib.units import inch
-    from reportlab.lib import colors
-    REPORTLAB_AVAILABLE = True
-except ImportError:
+    import importlib.util as _importlib_util
+    REPORTLAB_AVAILABLE = _importlib_util.find_spec('reportlab') is not None
+except Exception:
     REPORTLAB_AVAILABLE = False
 
 
@@ -100,14 +95,14 @@ def export_to_excel(df, filename):
                 'border': 1
             })
             
-            date_format = workbook.add_format({
-                'num_format': 'yyyy-mm-dd',
-                'border': 1
-            })
-            
             # Apply formats
             for col_num, value in enumerate(df.columns.values):
                 worksheet.write(0, col_num, value, header_format)
+            
+            # Apply number format to numeric data columns
+            for col_num, col_name in enumerate(df.columns):
+                if pd.api.types.is_numeric_dtype(df[col_name]):
+                    worksheet.set_column(col_num, col_num, None, number_format)
             
             # Auto-adjust column widths
             for col_num, col_name in enumerate(df.columns):
@@ -134,7 +129,7 @@ def generate_pdf_report(client, agent, building, start_date, end_date):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib import colors
     
     # Get data

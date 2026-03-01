@@ -7,8 +7,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
-from main_app import ESGEntry, session, compute_esg_scores, grade_data_quality
+from datetime import datetime
+from main_app import ESGEntry, session, compute_esg_scores
 
 
 def get_portfolio_stats(client_sel=None):
@@ -336,7 +336,9 @@ def render_trends(client_sel=None):
     df_trends = pd.DataFrame(trends)
     
     if df_trends.empty:
-        return
+        fig = go.Figure()
+        fig.add_annotation(text="No historical data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
     
     # Average by date
     daily_avg = df_trends.groupby('Date')[['ESG Score', 'E Score', 'S Score', 'G Score']].mean()
