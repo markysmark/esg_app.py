@@ -414,7 +414,7 @@ def render_dashboard(client_sel=None, brand_palette=None):
         margin-bottom: 2rem;
     }
     .dashboard-title {
-        color: white;
+        color: #FFD700;
         font-size: 2.5rem;
         font-weight: bold;
         margin: 0;
