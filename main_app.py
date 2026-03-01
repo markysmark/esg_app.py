@@ -1088,7 +1088,7 @@ def main():
                     st.session_state.user = auth['username']
                     st.session_state.user_role = auth['role']
                     st.success(f"Signed in as {auth['username']}")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Invalid credentials")
         else:
@@ -1096,7 +1096,7 @@ def main():
             if st.button("Sign out", key="signout"):
                 st.session_state.user = None
                 st.session_state.user_role = None
-                st.experimental_rerun()
+                st.rerun()
     
     # Navigation
     col1, col2, col3, col4, col5, col6 = st.columns(6)
