@@ -137,10 +137,22 @@ def apply_theme():
             background-color: #FFFFFF !important;
         }
 
-        /* Ensure typed and displayed text is always black in select and date inputs */
-        .stSelectbox [data-baseweb="select"] [data-value],
-        .stSelectbox [data-baseweb="select"] input,
-        .stDateInput input {
+        /* Ensure all input/textarea elements always show black text */
+        input, textarea {
+            color: #1A1A1A !important;
+        }
+
+        /* Selectbox/dropdown selected value and option text */
+        [data-baseweb="select"] span,
+        [data-baseweb="select"] div,
+        [data-baseweb="select"] input,
+        [data-baseweb="popover"] li,
+        [data-baseweb="popover"] [role="option"] {
+            color: #1A1A1A !important;
+        }
+
+        /* Multiselect tags */
+        [data-baseweb="tag"] span {
             color: #1A1A1A !important;
         }
         
