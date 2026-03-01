@@ -63,6 +63,9 @@ docker run -it -p 8501:8501 -v $(pwd)/data:/app esg_intelligence:latest
 
 ## 📚 Using the App
 
+> **New in‑app instructions:** click the **❓ Help** button in the top navigation bar to view this README (and more) directly inside the running application.
+
+
 ### 1. Home Dashboard
 Overview with portfolio statistics and quick navigation buttons.
 

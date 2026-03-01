@@ -580,6 +580,22 @@ def page_home():
             st.rerun()
 
 
+def page_help():
+    """Display full user instructions.
+
+    The content is drawn from the project README so that users can access
+    installation and usage guidance without leaving the Streamlit interface.
+    """
+    try:
+        with open("README.md", "r", encoding="utf-8") as f:
+            readme = f.read()
+    except Exception:
+        readme = "Unable to load instructions."
+    # Streamlit will emit warnings about missing ScriptRunContext when
+    # invoked outside `streamlit run`; these are harmless during tests.
+    st.markdown(readme, unsafe_allow_html=True)
+
+
 def page_upload_data():
     """Data upload page"""
     from data_upload import render_upload_interface
@@ -841,7 +857,7 @@ def main():
     st.caption("Corporate ESG Data Management & Analytics")
     
     # Navigation
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         if st.button("🏠 Home", width="stretch", key="nav_home"):
@@ -863,6 +879,10 @@ def main():
         if st.button("⚙️ Management", width="stretch", key="nav_management"):
             st.session_state.current_page = 'Management'
     
+    with col6:
+        if st.button("❓ Help", width="stretch", key="nav_help"):
+            st.session_state.current_page = 'Help'
+    
     st.divider()
     
     # Route to current page
@@ -878,6 +898,8 @@ def main():
         page_reports()
     elif page == 'Management':
         page_management()
+    elif page == 'Help':
+        page_help()
 
 
 if __name__ == "__main__":
