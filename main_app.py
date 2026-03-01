@@ -443,7 +443,15 @@ def log_action(building, owner, action, due_date=None, status=None):
 
 
 def load_savills_demo_data():
-    """Load realistic demo data for Savills' managed buildings"""
+    """Load realistic demo data for Savills' managed buildings.
+
+    Inserts 12 months of monthly historical records per building so that
+    the dashboard Historical Trends chart has meaningful data to display.
+    Each month's values trend slightly toward improvement over time to
+    simulate a realistic ESG programme.
+    """
+    from dateutil.relativedelta import relativedelta
+
     demo_buildings = [
         {
             'client': 'British Land',
@@ -490,29 +498,47 @@ def load_savills_demo_data():
             'hours_worked': 107440
         }
     ]
-    
+
+    # Number of months of history to generate (including the current month).
+    # Must be >= 2 so that the improvement gradient calculation is well-defined.
+    HISTORY_MONTHS = 12
+
+    now = datetime.utcnow()
+
     for data in demo_buildings:
-        # Check if building already exists
-        existing = session.query(ESGEntry).filter(
-            ESGEntry.building == data['building'],
-            ESGEntry.agent == 'Savills'
-        ).first()
-        
-        if not existing:
-            entry = ESGEntry(
-                client=data['client'],
-                agent=data['agent'],
-                building=data['building'],
-                waste_tonnes=data['waste_tonnes'],
-                energy_kwh=data['energy_kwh'],
-                chem_litres=data['chem_litres'],
-                eco_chem_pct=data['eco_chem_pct'],
-                employee_count=data['employee_count'],
-                hours_worked=data['hours_worked'],
-                timestamp=datetime.utcnow()
-            )
-            session.add(entry)
-    
+        for month_offset in range(HISTORY_MONTHS - 1, -1, -1):
+            record_date = now - relativedelta(months=month_offset)
+
+            # Check if a record already exists for this building and month
+            month_start = record_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = month_start + relativedelta(months=1)
+            existing = session.query(ESGEntry).filter(
+                ESGEntry.building == data['building'],
+                ESGEntry.agent == 'Savills',
+                ESGEntry.timestamp >= month_start,
+                ESGEntry.timestamp < month_end
+            ).first()
+
+            if not existing:
+                # Apply a small monthly improvement trend (older months are slightly worse).
+                # month_offset 11 = 11 months ago (worst), 0 = current month (best).
+                improvement = month_offset / (HISTORY_MONTHS - 1) if HISTORY_MONTHS > 1 else 0.0
+                # Eco-chemical percentage floor: 50% reflects a realistic minimum programme baseline.
+                ECO_CHEM_FLOOR = 50.0
+                entry = ESGEntry(
+                    client=data['client'],
+                    agent=data['agent'],
+                    building=data['building'],
+                    waste_tonnes=round(data['waste_tonnes'] * (1 + improvement * 0.20), 2),
+                    energy_kwh=round(data['energy_kwh'] * (1 + improvement * 0.15)),
+                    chem_litres=round(data['chem_litres'] * (1 + improvement * 0.10), 1),
+                    eco_chem_pct=round(max(ECO_CHEM_FLOOR, data['eco_chem_pct'] - improvement * 15), 1),
+                    employee_count=data['employee_count'],
+                    hours_worked=data['hours_worked'],
+                    timestamp=record_date
+                )
+                session.add(entry)
+
     session.commit()
     log_action('', 'system', 'Savills demo data loaded', status='demo')
 
@@ -1023,6 +1049,9 @@ def page_management():
             - Broadgate Tower (620 staff, 68,500 kWh)
             - Centre Point (350 staff, 41,200 kWh)
             - St Pauls House (520 staff, 58,700 kWh)
+
+            12 months of monthly historical records are included per building so the
+            Historical Trends chart in the Dashboard shows meaningful trend data.
             """)
             
             col1, col2 = st.columns(2)
