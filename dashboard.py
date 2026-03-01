@@ -204,14 +204,15 @@ def render_performance_comparison(df_performance, brand_palette):
     
     df_sorted = df_performance.sort_values('ESG Score', ascending=True).tail(15)
     
-    fig = px.barh(
+    fig = px.bar(
         df_sorted,
         x='ESG Score',
         y='Building',
         color='ESG Score',
         color_continuous_scale=['#D32F2F', '#FFA000', '#2E7D32'],
         range_color=[0, 100],
-        hover_data=['Agent', 'E Score', 'S Score', 'G Score']
+        hover_data=['Agent', 'E Score', 'S Score', 'G Score'],
+        orientation='h'
     )
     
     fig.update_layout(
