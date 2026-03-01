@@ -11,6 +11,10 @@ def test_grade_data_quality_empty():
     assert result["current_data_pct"] == 0
     assert result["avg_confidence"] == 0.0
 
+    # overall portfolio grade should not error when called with None
+    portfolio = grade_data_quality(None)
+    assert "grade" in portfolio
+
 
 def test_grade_data_quality_with_data():
     # insert a dummy entry and evidence

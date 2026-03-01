@@ -12,7 +12,11 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import json
 import os
+import smtplib
+from email.message import EmailMessage
 from theme import apply_theme, brand_palette
+import threading
+import time
 
 # ==================== DATABASE SETUP ====================
 Base = declarative_base()
@@ -92,6 +96,17 @@ class EvidenceRegister(Base):
     item_type = Column(String)
     reference = Column(String)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EditHistory(Base):
+    __tablename__ = 'edit_history'
+    id = Column(Integer, primary_key=True)
+    entry_id = Column(Integer)
+    editor = Column(String)
+    changes = Column(Text)  # json
+    approved_by = Column(String)
+    approved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 Base.metadata.create_all(engine)
@@ -192,6 +207,11 @@ if 'clients_data' not in st.session_state:
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'Dashboard'
 
+if 'user' not in st.session_state:
+    st.session_state.user = None
+if 'user_role' not in st.session_state:
+    st.session_state.user_role = None
+
 # ==================== CORE FUNCTIONS ====================
 
 def compute_esg_scores(entry: ESGEntry):
@@ -270,6 +290,99 @@ def grade_data_quality(client, agent=None, building=None):
         "obligations_with_evidence_pct": obligations_with_evidence_pct,
         "avg_confidence": round(avg_confidence, 2)
     }
+
+
+# ----------------- ALERTS & AUTH HELPERS -----------------
+ALERT_THRESHOLD = int(os.environ.get('ALERT_THRESHOLD', '50'))
+STALE_DAYS = int(os.environ.get('DATA_STALE_DAYS', '90'))
+SMTP_SERVER = os.environ.get('SMTP_SERVER')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '25')) if os.environ.get('SMTP_PORT') else None
+ALERT_RECIPIENT = os.environ.get('ALERT_RECIPIENT')
+
+
+def _send_email(subject: str, body: str):
+    if not SMTP_SERVER or not ALERT_RECIPIENT:
+        return False
+    try:
+        msg = EmailMessage()
+        msg.set_content(body)
+        msg['Subject'] = subject
+        msg['From'] = os.environ.get('ALERT_SENDER', 'noreply@example.com')
+        msg['To'] = ALERT_RECIPIENT
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT or 25) as s:
+            s.send_message(msg)
+        return True
+    except Exception:
+        return False
+
+
+def perform_quality_checks(send_email=True):
+    """Compute quality issues and optionally send alerts. Returns dict of findings.
+
+    This function is safe to call from a CLI/worker (doesn't require Streamlit UI).
+    """
+    findings = {'low_portfolio': None, 'stale_clients': []}
+    try:
+        p = grade_data_quality(None)
+        pct = p.get('current_data_pct', 0)
+        if pct < ALERT_THRESHOLD:
+            findings['low_portfolio'] = pct
+            if send_email:
+                _send_email('ESG Platform: Low Data Quality', f'Portfolio completeness {pct}%')
+
+        for client in load_clients_data().keys():
+            q = session.query(ESGEntry).filter(ESGEntry.client == client).all()
+            if not q:
+                findings['stale_clients'].append((client, 'no data'))
+                continue
+            latest = max(q, key=lambda e: e.timestamp or datetime.min)
+            days = (datetime.utcnow() - (latest.timestamp or datetime.utcnow())).days
+            if days >= STALE_DAYS:
+                findings['stale_clients'].append((client, days))
+                if send_email:
+                    _send_email('ESG Platform: Data Freshness Alert', f'{client}: {days} days since last data')
+    except Exception:
+        pass
+    return findings
+
+
+def check_quality_alerts():
+    """UI wrapper: call the headless check and surface banners in Streamlit."""
+    findings = perform_quality_checks(send_email=True)
+    if findings.get('low_portfolio') is not None:
+        pct = findings['low_portfolio']
+        st.warning(f"Data quality alert: portfolio completeness {pct}% below threshold {ALERT_THRESHOLD}%")
+    if findings.get('stale_clients'):
+        lines = [f"{c}: {d} days since last data" for c, d in findings['stale_clients']]
+        st.info("Data freshness issues:\n" + "\n".join(lines))
+
+
+# Simple user store / auth (opt-in, minimal)
+USERS_FILE = os.environ.get('USERS_FILE', 'users.json')
+
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f).get('users', {})
+        except Exception:
+            return {}
+    return {}
+
+
+def authenticate(username: str, password: str):
+    users = load_users()
+    # simple static admin fallback: username 'admin' with ADMIN_PASSWORD
+    if username == 'admin' and password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
+        return {'username': 'admin', 'role': 'admin'}
+    if username in users and users[username].get('password') == password:
+        return {'username': username, 'role': users[username].get('role', 'user')}
+    return None
+
+
+def require_role(role: str):
+    return st.session_state.get('user_role') == role
 
 
 def log_action(building, owner, action, due_date=None, status=None):
@@ -507,6 +620,12 @@ def page_home():
     unique_clients = len(set(e.client for e in all_entries if e.client))
     unique_agents = len(set(e.agent for e in all_entries if e.agent))
     
+    # compute overall data quality grade for portfolio
+    quality = grade_data_quality(None)
+    quality_grade = quality.get("grade", "F")
+    quality_pct = quality.get("current_data_pct", 0)
+    quality_conf = quality.get("avg_confidence", 0.0)
+    
     with col1:
         st.metric("📊 Buildings", unique_buildings)
     with col2:
@@ -515,6 +634,26 @@ def page_home():
         st.metric("👥 Managing Agents", unique_agents)
     with col4:
         st.metric("📈 Total Records", len(all_entries))
+    # data quality metric
+    st.metric("📋 Data Quality", quality_grade, delta=f"{quality_pct}% / conf {quality_conf}")
+
+    st.divider()
+    st.subheader("🔎 Quick Drilldowns")
+    clients = list(st.session_state.clients_data.keys())
+    if clients:
+        cols = st.columns(3)
+        for i, client in enumerate(clients):
+            c = cols[i % 3]
+            with c:
+                if st.button(f"View {client}", key=f"drill_client_{i}"):
+                    st.session_state.mgmt_client = client
+                    st.session_state.current_page = 'Management'
+                    st.rerun()
+    else:
+        st.info("No clients defined yet.")
+    with st.container():
+        # place grade beneath the stats row
+        st.metric("📋 Data Quality", quality_grade, delta=f"{quality_pct}% / conf {quality_conf}")
     
     st.divider()
     
@@ -641,10 +780,15 @@ def page_management():
         st.subheader("Raw ESG Data")
         
         client_sel = st.selectbox("Filter by Client", ["All"] + list(st.session_state.clients_data.keys()), key="mgmt_client")
+        search_text = st.text_input("Search building/agent", key="mgmt_search")
         
         q = session.query(ESGEntry)
         if client_sel != "All":
             q = q.filter(ESGEntry.client == client_sel)
+        
+        if search_text:
+            like = f"%{search_text}%"
+            q = q.filter((ESGEntry.building.ilike(like)) | (ESGEntry.agent.ilike(like)))
         
         entries = q.order_by(ESGEntry.timestamp.desc()).all()
         
@@ -653,6 +797,7 @@ def page_management():
             for e in entries:
                 score_e, score_s, score_g, score_esg = compute_esg_scores(e)
                 data.append({
+                    'id': e.id,
                     'Date': e.timestamp.strftime('%Y-%m-%d %H:%M'),
                     'Client': e.client,
                     'Agent': e.agent,
@@ -663,15 +808,39 @@ def page_management():
                     'ESG': score_esg,
                     'Waste (T)': e.waste_tonnes,
                     'Energy (kWh)': e.energy_kwh,
-                    'Staff': e.employee_count
+                    'Staff': e.employee_count,
+                    'Approve': False
                 })
             
             df = pd.DataFrame(data)
-            st.dataframe(df, width="stretch", height=400)
-            
-            # Download option
-            csv = df.to_csv(index=False)
-            st.download_button("📥 Download CSV", csv, "esg_data.csv", "text/csv")
+            # Prefer experimental_data_editor when available for inline edits
+            editor_supported = hasattr(st, 'experimental_data_editor')
+            if editor_supported:
+                edited = st.experimental_data_editor(df, num_rows="dynamic")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.download_button("📥 Download CSV", edited.to_csv(index=False), "esg_data.csv", "text/csv")
+                with col2:
+                    if st.button("Apply Approved Changes"):
+                        # commit rows marked Approve=True
+                        for _, row in edited[edited['Approve'] == True].iterrows():
+                            eid = int(row['id'])
+                            ent = session.query(ESGEntry).filter(ESGEntry.id == eid).first()
+                            if ent:
+                                try:
+                                    ent.waste_tonnes = float(row.get('Waste (T)') or 0)
+                                    ent.energy_kwh = float(row.get('Energy (kWh)') or 0)
+                                    ent.employee_count = int(float(row.get('Staff') or 0))
+                                except Exception:
+                                    pass
+                                session.add(ent)
+                        session.commit()
+                        st.success("✅ Applied approved changes")
+                        st.rerun()
+            else:
+                st.dataframe(df, width="stretch", height=400)
+                csv = df.to_csv(index=False)
+                st.download_button("📥 Download CSV", csv, "esg_data.csv", "text/csv")
         else:
             st.info("No ESG data available yet. Upload data first.")
     
@@ -782,27 +951,29 @@ def page_management():
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary", key="load_savills"):
-                    try:
-                        load_savills_demo_data()
-                        st.success("✅ Savills demo data loaded successfully!")
-                        st.info("View the data in the Dashboard or Raw Data tab")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error loading demo data: {e}")
+                if require_role('admin'):
+                    if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary", key="load_savills"):
+                        try:
+                            load_savills_demo_data()
+                            st.success("✅ Savills demo data loaded successfully!")
+                            st.info("View the data in the Dashboard or Raw Data tab")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error loading demo data: {e}")
+                else:
+                    st.info("Admin only: sign in to load demo data")
             
             with col2:
-                if savills_count > 0:
-                    password = st.text_input("Admin password to clear", type="password", key="admin_clear_savills")
-                    if st.button("🗑️ Clear Savills Data", use_container_width=True, type="secondary", key="clear_savills"):
-                        if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                if require_role('admin'):
+                    if savills_count > 0:
+                        if st.button("🗑️ Clear Savills Data", use_container_width=True, type="secondary", key="clear_savills"):
                             deleted = clear_savills_demo_data()
                             st.success(f"✅ Cleared {deleted} Savills records")
                             st.rerun()
-                        else:
-                            st.error("❌ Incorrect admin password")
+                    else:
+                        st.info("No Savills data to clear")
                 else:
-                    st.info("No Savills data to clear")
+                    st.info("Admin only: sign in to clear demo data")
         
         with tab5_2:
             st.markdown("""
@@ -832,17 +1003,16 @@ def page_management():
                         st.error(f"Error loading demo data: {e}")
             
             with col2:
-                if test_count > 0:
-                    password = st.text_input("Admin password to clear", type="password", key="admin_clear_test")
-                    if st.button("🗑️ Clear Test Client Data", use_container_width=True, type="secondary", key="clear_test"):
-                        if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                if require_role('admin'):
+                    if test_count > 0:
+                        if st.button("🗑️ Clear Test Client Data", use_container_width=True, type="secondary", key="clear_test"):
                             deleted = clear_test_client_data()
                             st.success(f"✅ Cleared {deleted} Test Client records")
                             st.rerun()
-                        else:
-                            st.error("❌ Incorrect admin password")
+                    else:
+                        st.info("No Test Client data to clear")
                 else:
-                    st.info("No Test Client data to clear")
+                    st.info("Admin only: sign in to clear demo data")
 
 
 # ==================== MAIN APP ====================
@@ -855,6 +1025,47 @@ def main():
     # Top banner - Clean layout
     st.title("🌍 ESG Intelligence Platform")
     st.caption("Corporate ESG Data Management & Analytics")
+    # run simple data quality checks at startup
+    check_quality_alerts()
+    # schedule periodic checks in background once per process
+    try:
+        if not st.session_state.get('_alerts_thread_started'):
+            def _bg():
+                interval = int(os.environ.get('ALERT_INTERVAL_HOURS', '24')) * 3600
+                while True:
+                    time.sleep(interval)
+                    try:
+                        check_quality_alerts()
+                    except Exception:
+                        pass
+
+            t = threading.Thread(target=_bg, daemon=True)
+            t.start()
+            st.session_state['_alerts_thread_started'] = True
+    except Exception:
+        pass
+
+    # simple login UI in the sidebar
+    with st.sidebar:
+        st.header("Account")
+        if not st.session_state.get('user'):
+            user_in = st.text_input("Username", key="login_user")
+            pass_in = st.text_input("Password", type="password", key="login_pass")
+            if st.button("Sign in", key="signin"):
+                auth = authenticate(user_in, pass_in)
+                if auth:
+                    st.session_state.user = auth['username']
+                    st.session_state.user_role = auth['role']
+                    st.success(f"Signed in as {auth['username']}")
+                    st.experimental_rerun()
+                else:
+                    st.error("Invalid credentials")
+        else:
+            st.write(f"Signed in as {st.session_state.get('user')} ({st.session_state.get('user_role')})")
+            if st.button("Sign out", key="signout"):
+                st.session_state.user = None
+                st.session_state.user_role = None
+                st.experimental_rerun()
     
     # Navigation
     col1, col2, col3, col4, col5, col6 = st.columns(6)

@@ -5,10 +5,34 @@ Handles bulk upload of ESG data from CSV/Excel files with validation and mapping
 
 import streamlit as st
 import pandas as pd
+import os
 from io import StringIO, BytesIO
 from datetime import datetime
 import json
 from main_app import ESGEntry, session, log_action
+
+# persistent mapping profiles
+PROFILE_FILE = "mapping_profiles.json"
+
+
+def load_mapping_profiles():
+    """Return persisted column mapping profiles."""
+    if os.path.exists(PROFILE_FILE):
+        try:
+            with open(PROFILE_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_mapping_profiles(profiles: dict):
+    """Write mapping profiles back to disk."""
+    try:
+        with open(PROFILE_FILE, 'w') as f:
+            json.dump(profiles, f, indent=2)
+    except Exception:
+        pass
 
 
 def validate_required_fields(df, field_mapping):
@@ -53,11 +77,48 @@ def preview_data(df, field_mapping, max_rows=10):
         DataFrame with mapped columns
     """
     preview_df = pd.DataFrame()
-    
+
     for esg_field, csv_column in field_mapping.items():
         if csv_column and csv_column in df.columns:
             preview_df[esg_field] = df[csv_column]
-    
+
+    # add simple validation column
+    def row_validations(row):
+        issues = []
+        try:
+            if 'waste_tonnes' in row.index and pd.notna(row['waste_tonnes']):
+                if float(row['waste_tonnes']) < 0:
+                    issues.append('negative waste')
+        except Exception:
+            pass
+        try:
+            if 'energy_kwh' in row.index and pd.notna(row['energy_kwh']):
+                if float(row['energy_kwh']) < 0:
+                    issues.append('negative energy')
+        except Exception:
+            pass
+        try:
+            if 'eco_chem_pct' in row.index and pd.notna(row['eco_chem_pct']):
+                v = float(row['eco_chem_pct'])
+                if v < 0 or v > 100:
+                    issues.append('eco_chem_pct out of range')
+        except Exception:
+            pass
+        try:
+            if 'employee_count' in row.index and pd.notna(row['employee_count']):
+                if int(float(row['employee_count'])) < 0:
+                    issues.append('negative staff')
+        except Exception:
+            pass
+        return '; '.join(issues)
+
+    if not preview_df.empty:
+        preview_df = preview_df.copy()
+        preview_df['__validation'] = preview_df.apply(row_validations, axis=1)
+
+        # limit rows returned
+        return preview_df.head(max_rows)
+
     return preview_df.head(max_rows)
 
 
@@ -219,7 +280,16 @@ def render_upload_interface():
             # Column mapping section
             st.subheader("🔀 Map Your Columns")
             st.markdown("Match your file columns to ESG data fields:")
-            
+
+            # mapping profile selector
+            profiles = load_mapping_profiles()
+            profile_names = ["<new>"] + sorted(profiles.keys())
+            selected_profile = st.selectbox("Existing profile", profile_names, key="profile_sel")
+            if selected_profile != "<new>":
+                profile_mapping = profiles.get(selected_profile, {})
+            else:
+                profile_mapping = {}
+
             col1, col2 = st.columns(2)
             
             with col1:
@@ -246,23 +316,31 @@ def render_upload_interface():
                     'chem_litres': st.selectbox(
                         'Chemicals (Litres) Column',
                         [None] + list(df.columns),
+                        index=(list(df.columns).index(profile_mapping['chem_litres'])+1
+                               if profile_mapping.get('chem_litres') in df.columns else 0),
                         help="Required: Chemical volume used"
                     ),
                     'eco_chem_pct': st.selectbox(
                         'Eco-Chemical % Column',
                         [None] + list(df.columns),
+                        index=(list(df.columns).index(profile_mapping['eco_chem_pct'])+1
+                               if profile_mapping.get('eco_chem_pct') in df.columns else 0),
                         help="Required: Percentage of eco-friendly chemicals"
                     ),
                     'employee_count': st.selectbox(
                         'Staff Count Column',
                         [None] + list(df.columns),
+                        index=(list(df.columns).index(profile_mapping['employee_count'])+1
+                               if profile_mapping.get('employee_count') in df.columns else 0),
                         help="Required: Number of employees"
                     ),
                 })
-            
+
             field_mapping['hours_worked'] = st.selectbox(
                 'Total Hours Worked Column',
                 [None] + list(df.columns),
+                index=(list(df.columns).index(profile_mapping['hours_worked'])+1
+                       if profile_mapping.get('hours_worked') in df.columns else 0),
                 help="Required: Total work hours"
             )
             
@@ -274,7 +352,27 @@ def render_upload_interface():
             )
             
             st.divider()
-            
+
+            # profile save/delete UI
+            with st.expander("💾 Save / manage profile", expanded=False):
+                newname = st.text_input("Profile name",
+                                       value="" if selected_profile == "<new>" else selected_profile)
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("Save profile"):
+                        if newname:
+                            profiles[newname] = field_mapping.copy()
+                            save_mapping_profiles(profiles)
+                            st.success(f"Profile '{newname}' saved")
+                        else:
+                            st.error("Provide a name to save")
+                with col_b:
+                    if selected_profile not in (None, "<new>"):
+                        if st.button("Delete profile", type="secondary"):
+                            profiles.pop(selected_profile, None)
+                            save_mapping_profiles(profiles)
+                            st.success(f"Profile '{selected_profile}' removed")
+
             # Validate mapping
             is_valid, error_msg = validate_required_fields(df, field_mapping)
             
@@ -283,8 +381,32 @@ def render_upload_interface():
                 
                 # Preview
                 with st.expander("👁️ Preview Data", expanded=True):
-                    preview_df = preview_data(df, field_mapping)
-                    st.dataframe(preview_df, width="stretch")
+                    preview_df = preview_data(df, field_mapping, max_rows=len(df))
+                    # Pagination controls
+                    page_size = st.selectbox("Rows per page", [10, 25, 50, 100], index=0)
+                    total = len(preview_df)
+                    total_pages = max(1, (total + page_size - 1) // page_size)
+                    page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
+                    start = (page - 1) * page_size
+                    end = start + page_size
+                    st.write(f"Showing rows {start+1}–{min(end, total)} of {total}")
+                    if not preview_df.empty:
+                        if '__validation' in preview_df.columns:
+                            # highlight invalid rows
+                            def highlight_row(s):
+                                if s['__validation']:
+                                    return ['background-color: #ffdddd'] * len(s.index)
+                                return [''] * len(s.index)
+
+                            try:
+                                st.dataframe(preview_df.style.apply(lambda r: ['background-color: #ffdddd' if r['__validation'] else '' for _ in r], axis=1), width="stretch")
+                            except Exception:
+                                # fallback to raw dataframe and show validation column
+                                st.dataframe(preview_df, width="stretch")
+                        else:
+                            st.dataframe(preview_df, width="stretch")
+                    else:
+                        st.info("No previewable rows found")
                 
                 st.divider()
                 
@@ -354,14 +476,29 @@ def render_upload_interface():
                             )
                             
                             st.success(f"✅ Import Complete: {success_count} entries successfully imported")
-                            
+
                             if warnings:
-                                st.warning(f"⚠️ {len(warnings)} warnings:\n" + "\n".join(warnings[:5]))
-                            
+                                st.warning(f"⚠️ {len(warnings)} warnings")
+                                # offer download of warnings
+                                try:
+                                    import pandas as _pd
+                                    wdf = _pd.DataFrame({'warning': warnings})
+                                    csv_w = wdf.to_csv(index=False)
+                                    st.download_button("📥 Download Warnings CSV", csv_w, "warnings.csv", "text/csv")
+                                except Exception:
+                                    pass
+
                             if errors:
                                 with st.expander(f"❌ {len(errors)} errors encountered"):
-                                    st.code("\n".join(errors[:10]))
-                            
+                                    st.code("\n".join(errors[:50]))
+                                try:
+                                    import pandas as _pd
+                                    edf = _pd.DataFrame({'error': errors})
+                                    csv_e = edf.to_csv(index=False)
+                                    st.download_button("📥 Download Errors CSV", csv_e, "errors.csv", "text/csv")
+                                except Exception:
+                                    pass
+
                             st.rerun()
             else:
                 st.error(f"❌ {error_msg}")

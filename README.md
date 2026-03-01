@@ -67,13 +67,21 @@ docker run -it -p 8501:8501 -v $(pwd)/data:/app esg_intelligence:latest
 
 
 ### 1. Home Dashboard
-Overview with portfolio statistics and quick navigation buttons.
+Overview with portfolio statistics, a **data quality grade** (A–F) for the entire portfolio, and quick navigation buttons.
 
+> The grade is calculated based on completeness, recency and evidence coverage; hover over the metric for percent/completeness details in the app.
+
+### 2. Upload Data
 ### 2. Upload Data
 - Download CSV template
 - Prepare data file with ESG metrics
 - Map columns to platform fields
 - Import with validation
+
+    **Profile support**: once you've mapped a set of columns, expand the
+    "Save / manage profile" section to give the mapping a name. Future uploads
+    of the same format can be restored from the profile dropdown, saving time
+    when you regularly ingest files from the same source.
 
 **Required columns**: Building Name, Waste (Tonnes), Energy (kWh), Chemicals (L), Eco Chemicals %, Staff Count, Total Hours
 
