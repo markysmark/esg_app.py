@@ -99,7 +99,7 @@ pkill -f "streamlit run"
 
 # Start fresh
 cd /workspaces/esg_app.py
-streamlit run main_app.py
+streamlit run esg_app.py
 ```
 
 ---

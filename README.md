@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 3. **Run the app**:
 ```bash
-streamlit run main_app.py
+streamlit run esg_app.py
 ```
 
 4. Open `http://localhost:8501` in your browser
@@ -115,7 +115,8 @@ Export filtered data in CSV, Excel, JSON, or PDF format with custom date ranges 
 ## 📁 Structure
 
 ```
-├── main_app.py           # Main application entry
+├── main_app.py           # Main application entry (run via esg_app.py)
+├── esg_app.py            # Compatibility shim for the entrypoint
 ├── data_upload.py        # Bulk import module
 ├── dashboard.py          # Analytics & visualizations
 ├── export_report.py      # Reporting module

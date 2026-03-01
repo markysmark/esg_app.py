@@ -99,6 +99,57 @@ Base.metadata.create_all(engine)
 # ==================== CLIENTS & AGENTS ====================
 CLIENTS_FILE = "clients_agents.json"
 
+# --- DUMMY DATA SUPPORT ---
+DUMMY_FILE = "dummy_toggle.json"
+
+
+def is_dummy_enabled():
+    """Return True if the dummy data toggle is currently enabled."""
+    if os.path.exists(DUMMY_FILE):
+        try:
+            with open(DUMMY_FILE, 'r') as f:
+                return json.load(f).get('enabled', False)
+        except Exception:
+            return False
+    return False
+
+
+def set_dummy_enabled(val: bool):
+    """Write the toggle state to disk."""
+    with open(DUMMY_FILE, 'w') as f:
+        json.dump({'enabled': val}, f)
+
+
+def load_dummy_entries(client, agent, count=5):
+    """Insert a batch of dummy ESGEntry rows for testing.
+
+    After populating data the toggle is automatically cleared to avoid
+    accidental repeated loads. The caller is responsible for any permissions
+    or password checks (in the UI this is gated behind admin validation).
+    """
+    for i in range(count):
+        e = ESGEntry(
+            client=client,
+            agent=agent,
+            building=f"Dummy Building {i+1}",
+            waste_tonnes=round(1 + i * 0.5, 1),
+            energy_kwh=round(1000 + i * 200),
+            chem_litres=round(10 + i * 2),
+            eco_chem_pct=80.0,
+            employee_count=50 + i * 5,
+            hours_worked=2000 + i * 100,
+            timestamp=datetime.utcnow()
+        )
+        session.add(e)
+    session.commit()
+    # record action using existing helper (log_action defined later in file)
+    try:
+        log_action('', 'system', f"Loaded {count} dummy entries for {agent}", status="dummy")
+    except NameError:
+        pass
+    set_dummy_enabled(False)
+
+
 
 def load_clients_data():
     """Load clients and agents from JSON file"""
