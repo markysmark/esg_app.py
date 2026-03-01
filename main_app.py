@@ -560,22 +560,22 @@ def page_home():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("📤 Upload Data", width="stretch"):
+        if st.button("📤 Upload Data", width="stretch", key="quick_upload"):
             st.session_state.current_page = 'Data Upload'
             st.rerun()
     
     with col2:
-        if st.button("📊 View Dashboard", width="stretch"):
+        if st.button("📊 View Dashboard", width="stretch", key="quick_dashboard"):
             st.session_state.current_page = 'Dashboard'
             st.rerun()
     
     with col3:
-        if st.button("📄 Generate Report", width="stretch"):
+        if st.button("📄 Generate Report", width="stretch", key="quick_reports"):
             st.session_state.current_page = 'Reports'
             st.rerun()
     
     with col4:
-        if st.button("⚙️ Manage Data", width="stretch"):
+        if st.button("⚙️ Manage Data", width="stretch", key="quick_management"):
             st.session_state.current_page = 'Management'
             st.rerun()
 
@@ -844,23 +844,23 @@ def main():
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        if st.button("🏠 Home", width="stretch"):
+        if st.button("🏠 Home", width="stretch", key="nav_home"):
             st.session_state.current_page = 'Home'
     
     with col2:
-        if st.button("📤 Upload Data", width="stretch"):
+        if st.button("📤 Upload Data", width="stretch", key="nav_upload"):
             st.session_state.current_page = 'Data Upload'
     
     with col3:
-        if st.button("📊 Dashboard", width="stretch"):
+        if st.button("📊 Dashboard", width="stretch", key="nav_dashboard"):
             st.session_state.current_page = 'Dashboard'
     
     with col4:
-        if st.button("📄 Reports", width="stretch"):
+        if st.button("📄 Reports", width="stretch", key="nav_reports"):
             st.session_state.current_page = 'Reports'
     
     with col5:
-        if st.button("⚙️ Management", width="stretch"):
+        if st.button("⚙️ Management", width="stretch", key="nav_management"):
             st.session_state.current_page = 'Management'
     
     st.divider()
