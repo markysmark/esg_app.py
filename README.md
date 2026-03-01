@@ -1,88 +1,180 @@
-# ESG Intelligence Streamlit App
+# ESG Intelligence Platform
 
-Lightweight portfolio ESG tracker built with Streamlit, SQLite and a simple
-scoring engine.
+A **comprehensive, corporate-grade Environmental, Social & Governance (ESG) management system** built with Streamlit. Designed for property portfolio managers, corporate sustainability teams, and ESG consultants.
 
-## Running Locally
+## 🌟 Key Features
 
-1. Create & activate a virtual environment:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Start the app:
-   ```bash
-   streamlit run main_app.py
-   ```
-4. Point your browser to `http://localhost:8501`.
+### 📊 Dashboard & Analytics
+- **Real-time ESG performance dashboard** with KPIs
+- **Portfolio-level analytics** and risk assessment
+- **Building performance ranking** and comparisons
+- **Historical trends** and pattern analysis
+- **Data quality grading** (A-F assessment)
 
-## Docker Deployment
+### 📤 Bulk Data Upload
+- **CSV/Excel import** - Process multiple sites at once
+- **Smart column mapping** - Auto-detect and map data fields
+- **Real-time validation** - Preview before import
+- **Batch processing** - Handle thousands of records
+- **Duplicate handling** - Skip or overwrite as needed
+- **Template download** - Example data to get started
 
-Build the image and run a container:
+### 📄 Advanced Reporting  
+- **Multi-format export**: CSV, Excel, JSON, PDF
+- **Custom filtering** - By client, agent, building, dates
+- **Professional reports** - Executive summaries & recommendations
+- **Performance analytics** - Distribution and risk analysis
 
+### 🏢 Portfolio Management
+- **Multi-client support** - Manage multiple organizations
+- **Agent tracking** - Monitor portfolios by managing agent
+- **Site management** - Track individual properties
+- **Document library** - Upload & store ESG evidence
+- **Audit trails** - Complete activity logging
+
+## 🚀 Quick Start
+
+### Installation
+
+1. **Create virtual environment**:
 ```bash
-# build
-docker build -t esg_app:latest .
-
-# run (mont a volume for persistence if desired)
-mkdir -p ./data
-docker run -it --rm -p 8501:8501 -v "$PWD/data":/app jpc_esg_intelligence.db esg_app:latest
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-The database file will live in `./data/jpc_esg_intelligence.db` and
-reports/evidence directories will be created alongside.
+2. **Install dependencies**:
+```bash
+pip install -r requirements.txt
+```
 
-## CI / Container Registry
+3. **Run the app**:
+```bash
+streamlit run main_app.py
+```
 
-A GitHub Actions workflow is provided (`.github/workflows/docker.yml`) that
-will build and push the container to Docker Hub whenever `main` is updated. To
-use it, set the following repository secrets:
+4. Open `http://localhost:8501` in your browser
 
-- `DOCKERHUB_USERNAME` – your Docker Hub user name
-- `DOCKERHUB_TOKEN` – a personal access token or password
+### Docker
 
-Once pushed, you can deploy the image on any container platform (Heroku,
-DigitalOcean App Platform, AWS ECS/Fargate, etc.) by pulling
-`<username>/esg_app:latest`.
+```bash
+docker build -t esg_intelligence:latest .
+docker run -it -p 8501:8501 -v $(pwd)/data:/app esg_intelligence:latest
+```
 
-## Streamlit Cloud
+## 📚 Using the App
 
-You can also deploy directly on [Streamlit Community Cloud](https://streamlit.io)
-by connecting the GitHub repo and specifying `main_app.py` as the entrypoint.
+### 1. Home Dashboard
+Overview with portfolio statistics and quick navigation buttons.
 
-1. Log in to Streamlit Community Cloud and click **New app**.
-2. Select this repository and choose the `main` branch and **specify `main_app.py`** as the entry point (not `esg_app.py`).
-   *If you accidentally select `esg_app.py` you'll encounter an encoding error when
-   generating reports; that file is an older prototype and is now deprecated.*
-3. The service will automatically install `requirements.txt` and start the app.
-4. **Optional configuration**:
-   - Set an `ADMIN_PASSWORD` secret in the app settings if you want to override
-     the default `admin123` used for enabling dummy data.
-   - You can also define any other environment variables (e.g. database URLs)
-     via the Secrets panel.
-5. After deployment, the URL provided by Streamlit will host the dashboard,
-   and updates pushed to `main` will trigger a rebuild.
+### 2. Upload Data
+- Download CSV template
+- Prepare data file with ESG metrics
+- Map columns to platform fields
+- Import with validation
 
-(The repo already contains a `requirements.txt` and the `Dockerfile` is not
-used by Streamlit Cloud.)
+**Required columns**: Building Name, Waste (Tonnes), Energy (kWh), Chemicals (L), Eco Chemicals %, Staff Count, Total Hours
 
-> **Cleanup note:** the original `esg_app.py` script is deprecated and has been
-> removed. Only `main_app.py` should be referenced going forward.
+### 3. View Dashboard
+- **KPI Cards**: Key metrics overview
+- **Score Breakdown**: E/S/G composition
+- **Rankings**: Building comparison
+- **Risk Matrix**: Identify problem areas
+- **Trends**: Performance over time
+- **Export**: Download detailed data
 
-## Notes
+### 4. Generate Reports
+Export filtered data in CSV, Excel, JSON, or PDF format with custom date ranges and scope.
 
-- The app persists data in an SQLite file located next to the script; make sure
-your chosen host provides a writable volume.
-- For production consider replacing SQLite with a managed database and storing
-evidence files in object storage.
+### 5. Manage Data
+- View portfolio structure
+- Browse raw ESG records
+- Add clients, agents, buildings
+- Manage uploaded evidence documents
 
-- **Dummy data toggle**: an administrator can enable a toggle in the Manage
-  sidebar to load a set of sample ESG entries for a leading agent (default
-  CBRE). Loading dummy data automatically turns the toggle off and the control
-  becomes unavailable; re‑enabling the toggle later requires the admin
-  password (`admin123` by default). You may change this constant in
-  `main_app.py` or hook it up to a secure secret store.
+## 📊 ESG Scoring Methodology
+
+**Overall ESG Score** = (E × 50%) + (S × 30%) + (G × 20%)
+
+### Environmental (E) Score
+- Waste reduction scoring (0-20 tonnes scale)
+- Energy efficiency scoring (0-20,000 kWh scale)  
+- Eco-chemical percentage bonus
+- **Max: 100 points**
+
+### Social (S) Score
+- Hours worked per employee vs. baseline (40 hrs/week)
+- Employee headcount bonus
+- **Max: 100 points**
+
+### Governance (G) Score
+- Base compliance score (50 pts)
+- Eco-chemical percentage contribution
+- Evidence document bonus (+2 pts each)
+- **Max: 100 points**
+
+## 📁 Structure
+
+```
+├── main_app.py           # Main application entry
+├── data_upload.py        # Bulk import module
+├── dashboard.py          # Analytics & visualizations
+├── export_report.py      # Reporting module
+├── theme.py              # Styling & branding
+│
+├── jpc_esg_intelligence.db  # SQLite database
+├── clients_agents.json      # Configuration
+├── evidence/                # Uploaded documents
+└── reports/                 # Generated reports
+```
+
+## 🔐 Security
+
+**Production recommendations**:
+
+1. Change admin password:
+```bash
+export ADMIN_PASSWORD="your_secure_password"
+```
+
+2. Use PostgreSQL instead of SQLite:
+```python
+# In main_app.py
+engine = create_engine('postgresql://user:pass@localhost/esg_db')
+```
+
+3. Store files in S3 or cloud storage
+4. Add authentication (LDAP, SAML, OAuth)
+5. Regular backups and monitoring
+
+## 🎨 Customization
+
+Edit colors and branding in `theme.py`:
+```python
+brand_palette = {
+    "brand_primary": "#102A43",      # Dark navy
+    "brand_accent": "#F5A623",       # Orange
+    "success_color": "#2E7D32",      # Green
+    "danger_color": "#D32F2F"        # Red
+}
+```
+
+Modify scoring weights in `main_app.py`:
+```python
+overall = round((e * 0.50) + (s * 0.30) + (g * 0.20), 1)
+```
+
+## 📞 Support
+
+- **Bugs**: GitHub Issues
+- **Questions**: GitHub Discussions  
+- **Suggestions**: Pull Requests welcome
+
+## 📄 License
+
+[Your License Here]
+
+---
+
+Built with [Streamlit](https://streamlit.io) | Database: SQLite/SQLAlchemy | Charts: Plotly
+
+*ESG Intelligence Platform v2.0 - March 2026*
