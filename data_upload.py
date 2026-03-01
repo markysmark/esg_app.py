@@ -35,6 +35,28 @@ def save_mapping_profiles(profiles: dict):
         pass
 
 
+def profile_option_index(profile_mapping: dict, key: str, columns: list) -> int:
+    """
+    Return the selectbox index for a saved profile mapping.
+    The selectbox options always prefix the real columns with a `None` option,
+    so we offset by +1 when the column exists.
+
+    Args:
+        profile_mapping: Saved mapping profile dictionary.
+        key: Field name to look up inside the profile.
+        columns: List of available column names from the uploaded file.
+
+    Returns:
+        Integer index to use for the selectbox (0 when no saved column exists).
+    """
+    if not profile_mapping:
+        return 0
+    col_name = profile_mapping.get(key)
+    if col_name and col_name in columns:
+        return columns.index(col_name) + 1
+    return 0
+
+
 def validate_required_fields(df, field_mapping):
     """
     Validate that all required ESG fields are present in the uploaded file.
@@ -276,6 +298,7 @@ def render_upload_interface():
             
             st.success(f"✅ File loaded: {uploaded_file.name} ({len(df)} rows)")
             st.divider()
+            columns = list(df.columns)
             
             # Column mapping section
             st.subheader("🔀 Map Your Columns")
@@ -296,17 +319,20 @@ def render_upload_interface():
                 field_mapping = {
                     'building': st.selectbox(
                         'Building Name Column',
-                        [None] + list(df.columns),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'building', columns),
                         help="Required: Column containing site/building names"
                     ),
                     'waste_tonnes': st.selectbox(
                         'Waste (Tonnes) Column',
-                        [None] + list(df.columns),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'waste_tonnes', columns),
                         help="Required: Total waste generated"
                     ),
                     'energy_kwh': st.selectbox(
                         'Energy (kWh) Column',
-                        [None] + list(df.columns),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'energy_kwh', columns),
                         help="Required: Total energy consumption"
                     ),
                 }
@@ -315,39 +341,36 @@ def render_upload_interface():
                 field_mapping.update({
                     'chem_litres': st.selectbox(
                         'Chemicals (Litres) Column',
-                        [None] + list(df.columns),
-                        index=(list(df.columns).index(profile_mapping['chem_litres'])+1
-                               if profile_mapping.get('chem_litres') in df.columns else 0),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'chem_litres', columns),
                         help="Required: Chemical volume used"
                     ),
                     'eco_chem_pct': st.selectbox(
                         'Eco-Chemical % Column',
-                        [None] + list(df.columns),
-                        index=(list(df.columns).index(profile_mapping['eco_chem_pct'])+1
-                               if profile_mapping.get('eco_chem_pct') in df.columns else 0),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'eco_chem_pct', columns),
                         help="Required: Percentage of eco-friendly chemicals"
                     ),
                     'employee_count': st.selectbox(
                         'Staff Count Column',
-                        [None] + list(df.columns),
-                        index=(list(df.columns).index(profile_mapping['employee_count'])+1
-                               if profile_mapping.get('employee_count') in df.columns else 0),
+                        [None] + columns,
+                        index=profile_option_index(profile_mapping, 'employee_count', columns),
                         help="Required: Number of employees"
                     ),
                 })
 
             field_mapping['hours_worked'] = st.selectbox(
                 'Total Hours Worked Column',
-                [None] + list(df.columns),
-                index=(list(df.columns).index(profile_mapping['hours_worked'])+1
-                       if profile_mapping.get('hours_worked') in df.columns else 0),
+                [None] + columns,
+                index=profile_option_index(profile_mapping, 'hours_worked', columns),
                 help="Required: Total work hours"
             )
             
             # Optional timestamp
             field_mapping['timestamp'] = st.selectbox(
                 'Date/Timestamp Column (Optional)',
-                [None] + list(df.columns),
+                [None] + columns,
+                index=profile_option_index(profile_mapping, 'timestamp', columns),
                 help="Optional: If not provided, current date will be used"
             )
             
