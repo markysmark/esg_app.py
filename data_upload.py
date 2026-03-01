@@ -284,7 +284,7 @@ def render_upload_interface():
                 # Preview
                 with st.expander("👁️ Preview Data", expanded=True):
                     preview_df = preview_data(df, field_mapping)
-                    st.dataframe(preview_df, use_container_width=True)
+                    st.dataframe(preview_df, width="stretch")
                 
                 st.divider()
                 
@@ -326,7 +326,7 @@ def render_upload_interface():
                     st.info(f"📊 **Summary**: Importing {len(df)} entries for **{client_sel}** / **{agent_sel}**")
                 
                 # Import button
-                if st.button("🚀 Import Data", type="primary", use_container_width=True):
+                if st.button("🚀 Import Data", type="primary", width="stretch"):
                     if not client_sel or client_sel == "New Client":
                         st.error("Please select or create a client")
                     elif not agent_sel or agent_sel == "New Agent":

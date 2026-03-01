@@ -322,7 +322,7 @@ def render_export_interface():
     
     # Preview
     with st.expander("👁️ Preview Data", expanded=False):
-        st.dataframe(esg_data, use_container_width=True)
+        st.dataframe(esg_data, width="stretch")
     
     st.divider()
     
@@ -369,7 +369,7 @@ def render_export_interface():
     
     with col4:
         # PDF Report
-        if st.button("📑 PDF Report", use_container_width=True, type="primary"):
+        if st.button("📑 PDF Report", width="stretch", type="primary"):
             with st.spinner("Generating PDF report..."):
                 pdf_data = generate_pdf_report(client_sel, agent_sel, building_sel, start_date, end_date)
                 
@@ -426,7 +426,7 @@ def render_export_interface():
             height=400
         )
         
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.plotly_chart(fig_hist, width="stretch")
     
     with col2:
         # Box plot of E/S/G scores
@@ -446,4 +446,4 @@ def render_export_interface():
             showlegend=True
         )
         
-        st.plotly_chart(fig_box, use_container_width=True)
+        st.plotly_chart(fig_box, width="stretch")

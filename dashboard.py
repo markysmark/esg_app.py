@@ -198,8 +198,9 @@ def render_performance_comparison(df_performance, brand_palette):
     Render building performance comparison chart.
     """
     if df_performance.empty:
-        st.info("No performance data available")
-        return
+        fig = go.Figure()
+        fig.add_annotation(text="No performance data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
     
     df_sorted = df_performance.sort_values('ESG Score', ascending=True).tail(15)
     
@@ -230,8 +231,9 @@ def render_esg_bubble_chart(df_performance):
     Render bubble chart showing ESG distribution.
     """
     if df_performance.empty:
-        st.info("No data for visualization")
-        return
+        fig = go.Figure()
+        fig.add_annotation(text="No data for visualization", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
     
     fig = px.scatter(
         df_performance,
@@ -261,7 +263,9 @@ def render_risk_matrix(df_performance):
     Render risk matrix heatmap based on E and G scores.
     """
     if df_performance.empty:
-        return
+        fig = go.Figure()
+        fig.add_annotation(text="No data for risk matrix", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
     
     # Bin scores into risk categories
     df_performance['E_Category'] = pd.cut(df_performance['E Score'], 
@@ -311,8 +315,9 @@ def render_trends(client_sel=None):
     entries = q.order_by(ESGEntry.timestamp.desc()).limit(500).all()
     
     if not entries:
-        st.info("No historical data available")
-        return
+        fig = go.Figure()
+        fig.add_annotation(text="No historical data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
     
     # Aggregate by building and date
     trends = []
@@ -435,7 +440,7 @@ def render_dashboard(client_sel=None, brand_palette=None):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.plotly_chart(render_esg_breakdown(stats, brand_palette), use_container_width=True)
+        st.plotly_chart(render_esg_breakdown(stats, brand_palette), width="stretch")
     
     with col2:
         if not df_performance.empty:
@@ -445,13 +450,13 @@ def render_dashboard(client_sel=None, brand_palette=None):
                 color_discrete_map={'Environmental': '#2E7D32', 'Social': '#1976D2', 'Governance': '#F57C00'},
                 title='ESG Weighting Distribution'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     
     st.divider()
     
     # Performance comparison
     st.subheader("🏢 Building Performance Ranking")
-    st.plotly_chart(render_performance_comparison(df_performance, brand_palette), use_container_width=True)
+    st.plotly_chart(render_performance_comparison(df_performance, brand_palette), width="stretch")
     
     st.divider()
     
@@ -460,21 +465,17 @@ def render_dashboard(client_sel=None, brand_palette=None):
     
     with col1:
         st.subheader("Distribution Analysis")
-        st.plotly_chart(render_esg_bubble_chart(df_performance), use_container_width=True)
+        st.plotly_chart(render_esg_bubble_chart(df_performance), width="stretch")
     
     with col2:
         st.subheader("Risk Assessment")
-        fig_risk = render_risk_matrix(df_performance)
-        if fig_risk:
-            st.plotly_chart(fig_risk, use_container_width=True)
+        st.plotly_chart(render_risk_matrix(df_performance), width="stretch")
     
     st.divider()
     
     # Trends
     st.subheader("📈 Historical Trends")
-    fig_trends = render_trends(client_sel)
-    if fig_trends:
-        st.plotly_chart(fig_trends, use_container_width=True)
+    st.plotly_chart(render_trends(client_sel), width="stretch")
     
     st.divider()
     
@@ -495,7 +496,7 @@ def render_dashboard(client_sel=None, brand_palette=None):
         
         st.dataframe(
             df_display[['Building', 'Agent', 'ESG Score', 'E Score', 'S Score', 'G Score', 'Waste (T)', 'Energy (kWh)', 'Last Updated']],
-            use_container_width=True,
+            width="stretch",
             hide_index=True
         )
         

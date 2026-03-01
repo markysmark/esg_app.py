@@ -8,8 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import json
 import os
@@ -230,6 +229,216 @@ def log_action(building, owner, action, due_date=None, status=None):
     return al
 
 
+def load_savills_demo_data():
+    """Load realistic demo data for Savills' managed buildings"""
+    demo_buildings = [
+        {
+            'client': 'British Land',
+            'agent': 'Savills',
+            'building': 'The Leadenhall Building',
+            'waste_tonnes': 12.5,
+            'energy_kwh': 52000,
+            'chem_litres': 145,
+            'eco_chem_pct': 82,
+            'employee_count': 480,
+            'hours_worked': 99840
+        },
+        {
+            'client': 'British Land',
+            'agent': 'Savills',
+            'building': 'Broadgate Tower',
+            'waste_tonnes': 18.2,
+            'energy_kwh': 68500,
+            'chem_litres': 210,
+            'eco_chem_pct': 75,
+            'employee_count': 620,
+            'hours_worked': 128960
+        },
+        {
+            'client': 'UK Top Agents',
+            'agent': 'Savills',
+            'building': 'Centre Point',
+            'waste_tonnes': 9.8,
+            'energy_kwh': 41200,
+            'chem_litres': 98,
+            'eco_chem_pct': 88,
+            'employee_count': 350,
+            'hours_worked': 72800
+        },
+        {
+            'client': 'UK Top Agents',
+            'agent': 'Savills',
+            'building': 'St Pauls House',
+            'waste_tonnes': 15.3,
+            'energy_kwh': 58700,
+            'chem_litres': 175,
+            'eco_chem_pct': 79,
+            'employee_count': 520,
+            'hours_worked': 107440
+        }
+    ]
+    
+    for data in demo_buildings:
+        # Check if building already exists
+        existing = session.query(ESGEntry).filter(
+            ESGEntry.building == data['building'],
+            ESGEntry.agent == 'Savills'
+        ).first()
+        
+        if not existing:
+            entry = ESGEntry(
+                client=data['client'],
+                agent=data['agent'],
+                building=data['building'],
+                waste_tonnes=data['waste_tonnes'],
+                energy_kwh=data['energy_kwh'],
+                chem_litres=data['chem_litres'],
+                eco_chem_pct=data['eco_chem_pct'],
+                employee_count=data['employee_count'],
+                hours_worked=data['hours_worked'],
+                timestamp=datetime.utcnow()
+            )
+            session.add(entry)
+    
+    session.commit()
+    log_action('', 'system', 'Savills demo data loaded', status='demo')
+
+
+def clear_savills_demo_data():
+    """Clear all demo data for Savills (admin only)"""
+    deleted_count = session.query(ESGEntry).filter(ESGEntry.agent == 'Savills').delete()
+    session.commit()
+    log_action('', 'admin', f'Cleared {deleted_count} Savills demo data records', status='admin')
+    return deleted_count
+
+
+def load_test_client_data():
+    """Load comprehensive test data for Test Client with diverse buildings"""
+    test_buildings = [
+        {
+            'client': 'Test Client',
+            'agent': 'CBRE',
+            'building': 'Tech Hub Downtown',
+            'waste_tonnes': 14.2,
+            'energy_kwh': 55000,
+            'chem_litres': 120,
+            'eco_chem_pct': 85,
+            'employee_count': 450,
+            'hours_worked': 93600
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'CBRE',
+            'building': 'Innovation Plaza',
+            'waste_tonnes': 10.5,
+            'energy_kwh': 38000,
+            'chem_litres': 80,
+            'eco_chem_pct': 92,
+            'employee_count': 320,
+            'hours_worked': 66560
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'JLL',
+            'building': 'Green Heights Tower',
+            'waste_tonnes': 8.3,
+            'energy_kwh': 32000,
+            'chem_litres': 65,
+            'eco_chem_pct': 95,
+            'employee_count': 280,
+            'hours_worked': 58240
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'JLL',
+            'building': 'Commerce Center East',
+            'waste_tonnes': 22.0,
+            'energy_kwh': 78000,
+            'chem_litres': 250,
+            'eco_chem_pct': 65,
+            'employee_count': 680,
+            'hours_worked': 141120
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'Knight Frank',
+            'building': 'Sustainable Park West',
+            'waste_tonnes': 11.7,
+            'energy_kwh': 42000,
+            'chem_litres': 95,
+            'eco_chem_pct': 88,
+            'employee_count': 380,
+            'hours_worked': 78960
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'Knight Frank',
+            'building': 'Executive Plaza South',
+            'waste_tonnes': 19.5,
+            'energy_kwh': 72000,
+            'chem_litres': 210,
+            'eco_chem_pct': 72,
+            'employee_count': 620,
+            'hours_worked': 128960
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'Savills',
+            'building': 'Urban Living Complex',
+            'waste_tonnes': 13.8,
+            'energy_kwh': 48000,
+            'chem_litres': 130,
+            'eco_chem_pct': 80,
+            'employee_count': 400,
+            'hours_worked': 83200
+        },
+        {
+            'client': 'Test Client',
+            'agent': 'Savills',
+            'building': 'Corporate Crown',
+            'waste_tonnes': 16.4,
+            'energy_kwh': 62000,
+            'chem_litres': 180,
+            'eco_chem_pct': 78,
+            'employee_count': 550,
+            'hours_worked': 114400
+        }
+    ]
+    
+    for data in test_buildings:
+        # Check if building already exists
+        existing = session.query(ESGEntry).filter(
+            ESGEntry.building == data['building'],
+            ESGEntry.client == 'Test Client'
+        ).first()
+        
+        if not existing:
+            entry = ESGEntry(
+                client=data['client'],
+                agent=data['agent'],
+                building=data['building'],
+                waste_tonnes=data['waste_tonnes'],
+                energy_kwh=data['energy_kwh'],
+                chem_litres=data['chem_litres'],
+                eco_chem_pct=data['eco_chem_pct'],
+                employee_count=data['employee_count'],
+                hours_worked=data['hours_worked'],
+                timestamp=datetime.utcnow()
+            )
+            session.add(entry)
+    
+    session.commit()
+    log_action('', 'system', 'Test Client demo data loaded', status='demo')
+
+
+def clear_test_client_data():
+    """Clear all demo data for Test Client (admin only)"""
+    deleted_count = session.query(ESGEntry).filter(ESGEntry.client == 'Test Client').delete()
+    session.commit()
+    log_action('', 'admin', f'Cleared {deleted_count} Test Client demo data records', status='admin')
+    return deleted_count
+
+
 # ==================== PAGE FUNCTIONS ====================
 
 def page_home():
@@ -300,22 +509,22 @@ def page_home():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("📤 Upload Data", use_container_width=True):
+        if st.button("📤 Upload Data", width="stretch"):
             st.session_state.current_page = 'Data Upload'
             st.rerun()
     
     with col2:
-        if st.button("📊 View Dashboard", use_container_width=True):
+        if st.button("📊 View Dashboard", width="stretch"):
             st.session_state.current_page = 'Dashboard'
             st.rerun()
     
     with col3:
-        if st.button("📄 Generate Report", use_container_width=True):
+        if st.button("📄 Generate Report", width="stretch"):
             st.session_state.current_page = 'Reports'
             st.rerun()
     
     with col4:
-        if st.button("⚙️ Manage Data", use_container_width=True):
+        if st.button("⚙️ Manage Data", width="stretch"):
             st.session_state.current_page = 'Management'
             st.rerun()
 
@@ -343,7 +552,7 @@ def page_management():
     st.header("⚙️ Data Management")
     st.markdown("Manage clients, agents, buildings, and view raw data.")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Structure", "📊 Raw Data", "🗂️ Add Items", "📁 Evidence"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Structure", "📊 Raw Data", "🗂️ Add Items", "📁 Evidence", "📦 Demo Data"])
     
     with tab1:
         st.subheader("Portfolio Structure")
@@ -391,7 +600,7 @@ def page_management():
                 })
             
             df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, height=400)
+            st.dataframe(df, width="stretch", height=400)
             
             # Download option
             csv = df.to_csv(index=False)
@@ -458,9 +667,72 @@ def page_management():
                 'Uploaded': e.uploaded_at.strftime('%Y-%m-%d %H:%M')
             } for e in evidence])
             
-            st.dataframe(df_evidence, use_container_width=True)
+            st.dataframe(df_evidence, width="stretch")
         else:
             st.info("No evidence documents uploaded yet.")
+    
+    with tab5:
+        st.subheader("📦 Demo Data Management")
+        st.markdown("Load realistic demo data for Savills to test the platform features.")
+        
+        # Check if Savills data exists
+        savills_count = session.query(ESGEntry).filter(ESGEntry.agent == 'Savills').count()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Savills Demo Records", savills_count)
+        
+        with col2:
+            if savills_count > 0:
+                st.success(f"✅ Demo data active ({savills_count} records)")
+            else:
+                st.info("No demo data loaded")
+        
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🚀 Load Demo Data")
+            st.markdown("""
+            **Includes:**
+            - The Leadenhall Building
+            - Broadgate Tower  
+            - Centre Point
+            - St Pauls House
+            
+            With realistic ESG metrics for testing.
+            """)
+            
+            if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary"):
+                try:
+                    load_savills_demo_data()
+                    st.success("✅ Demo data loaded successfully!")
+                    st.info("View the data in the Dashboard or Raw Data tab")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error loading demo data: {e}")
+        
+        with col2:
+            st.subheader("🗑️ Clear Demo Data")
+            st.markdown("""
+            **Admin action:** Remove all Savills demo records from the database.
+            
+            This cannot be undone.
+            """)
+            
+            if savills_count > 0:
+                password = st.text_input("Admin password to clear", type="password", key="admin_clear_pwd")
+                if st.button("🗑️ Clear Savills Data", use_container_width=True, type="secondary"):
+                    if password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                        deleted = clear_savills_demo_data()
+                        st.success(f"✅ Cleared {deleted} demo records")
+                        st.rerun()
+                    else:
+                        st.error("❌ Incorrect admin password")
+            else:
+                st.info("No demo data to clear")
 
 
 # ==================== MAIN APP ====================
@@ -470,37 +742,31 @@ def main():
     # Page config
     apply_theme()
     
-    # Top banner
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col1:
-        st.image("https://jpcbysamsic.uk/wp-content/uploads/2021/05/jpc-logo-gold.png", width=100)
-    with col2:
-        st.title("ESG Intelligence Platform")
-        st.caption("Environmental, Social & Governance Data Management System")
-    
-    st.divider()
+    # Top banner - Clean layout
+    st.title("🌍 ESG Intelligence Platform")
+    st.caption("Corporate ESG Data Management & Analytics")
     
     # Navigation
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        if st.button("🏠 Home", use_container_width=True):
+        if st.button("🏠 Home", width="stretch"):
             st.session_state.current_page = 'Home'
     
     with col2:
-        if st.button("📤 Upload Data", use_container_width=True):
+        if st.button("📤 Upload Data", width="stretch"):
             st.session_state.current_page = 'Data Upload'
     
     with col3:
-        if st.button("📊 Dashboard", use_container_width=True):
+        if st.button("📊 Dashboard", width="stretch"):
             st.session_state.current_page = 'Dashboard'
     
     with col4:
-        if st.button("📄 Reports", use_container_width=True):
+        if st.button("📄 Reports", width="stretch"):
             st.session_state.current_page = 'Reports'
     
     with col5:
-        if st.button("⚙️ Management", use_container_width=True):
+        if st.button("⚙️ Management", width="stretch"):
             st.session_state.current_page = 'Management'
     
     st.divider()
