@@ -2,7 +2,12 @@ import os
 import json
 import tempfile
 import pytest
-from data_upload import load_mapping_profiles, save_mapping_profiles, PROFILE_FILE
+from data_upload import (
+    load_mapping_profiles,
+    save_mapping_profiles,
+    PROFILE_FILE,
+    profile_option_index,
+)
 
 
 def test_profile_persistence(tmp_path, monkeypatch):
@@ -33,3 +38,13 @@ def test_profile_persistence(tmp_path, monkeypatch):
         f.write("notjson")
     assert load_mapping_profiles() == {}
 
+
+def test_profile_option_index_returns_correct_indices():
+    columns = ["Building", "Waste", "Energy"]
+    profile = {"building": "Waste", "missing": "Nope"}
+
+    # Offsets by one because of the leading None choice
+    assert profile_option_index(profile, "building", columns) == 2
+    # Missing or unknown keys fall back to the default option
+    assert profile_option_index(profile, "missing", columns) == 0
+    assert profile_option_index({}, "building", columns) == 0
