@@ -823,19 +823,50 @@ def page_management():
                 with col2:
                     if st.button("Apply Approved Changes"):
                         # commit rows marked Approve=True
+                        approver = st.session_state.get('user') or 'system'
                         for _, row in edited[edited['Approve'] == True].iterrows():
                             eid = int(row['id'])
                             ent = session.query(ESGEntry).filter(ESGEntry.id == eid).first()
                             if ent:
+                                changes = {}
                                 try:
-                                    ent.waste_tonnes = float(row.get('Waste (T)') or 0)
-                                    ent.energy_kwh = float(row.get('Energy (kWh)') or 0)
-                                    ent.employee_count = int(float(row.get('Staff') or 0))
+                                    old_waste = ent.waste_tonnes
+                                    new_waste = float(row.get('Waste (T)') or 0)
+                                    if old_waste != new_waste:
+                                        changes['waste_tonnes'] = [old_waste, new_waste]
+                                        ent.waste_tonnes = new_waste
                                 except Exception:
                                     pass
+                                try:
+                                    old_energy = ent.energy_kwh
+                                    new_energy = float(row.get('Energy (kWh)') or 0)
+                                    if old_energy != new_energy:
+                                        changes['energy_kwh'] = [old_energy, new_energy]
+                                        ent.energy_kwh = new_energy
+                                except Exception:
+                                    pass
+                                try:
+                                    old_staff = ent.employee_count
+                                    new_staff = int(float(row.get('Staff') or 0))
+                                    if old_staff != new_staff:
+                                        changes['employee_count'] = [old_staff, new_staff]
+                                        ent.employee_count = new_staff
+                                except Exception:
+                                    pass
+
+                                # persist entry and log edit if changes exist
                                 session.add(ent)
+                                if changes:
+                                    eh = EditHistory(
+                                        entry_id=ent.id,
+                                        editor=st.session_state.get('user') or 'unknown',
+                                        changes=json.dumps(changes),
+                                        approved_by=approver,
+                                        approved_at=datetime.utcnow()
+                                    )
+                                    session.add(eh)
                         session.commit()
-                        st.success("✅ Applied approved changes")
+                        st.success("✅ Applied approved changes and logged edits")
                         st.rerun()
             else:
                 st.dataframe(df, width="stretch", height=400)
