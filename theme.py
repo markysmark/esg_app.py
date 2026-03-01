@@ -136,6 +136,13 @@ def apply_theme():
             color: #1A1A1A !important;
             background-color: #FFFFFF !important;
         }
+
+        /* Ensure typed and displayed text is always black in select and date inputs */
+        .stSelectbox [data-baseweb="select"] [data-value],
+        .stSelectbox [data-baseweb="select"] input,
+        .stDateInput input {
+            color: #1A1A1A !important;
+        }
         
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus,
