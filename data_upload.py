@@ -6,7 +6,6 @@ Handles bulk upload of ESG data from CSV/Excel files with validation and mapping
 import streamlit as st
 import pandas as pd
 import os
-from io import StringIO, BytesIO
 from datetime import datetime
 import json
 from main_app import ESGEntry, session, log_action
