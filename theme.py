@@ -58,6 +58,7 @@ def apply_theme():
         }
         
         h1 {
+            color: #F5A623;
             border-bottom: 3px solid #F5A623;
             padding-bottom: 10px;
         }

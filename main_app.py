@@ -702,10 +702,7 @@ def page_home():
                     st.rerun()
     else:
         st.info("No clients defined yet.")
-    with st.container():
-        # place grade beneath the stats row
-        st.metric("📋 Data Quality", quality_grade, delta=f"{quality_pct}% / conf {quality_conf}")
-    
+
     st.divider()
     
     # Welcome section
