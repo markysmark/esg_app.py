@@ -1,0 +1,12 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Local databases / artifacts
+*.db
+
+# Pytest cache
+.pytest_cache/
+
+# Streamlit cache/logs
+.streamlit/
