@@ -107,6 +107,45 @@ class EditHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ServiceLineConfig(Base):
+    """Stores which service lines are active (in scope) for a given building."""
+    __tablename__ = 'service_line_config'
+    id = Column(Integer, primary_key=True)
+    building = Column(String, index=True)
+    service_line = Column(String)
+    active = Column(Integer, default=1)  # 1 = active, 0 = inactive
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CleaningKPI(Base):
+    """Stores detailed cleaning ESG KPIs per building per period."""
+    __tablename__ = 'cleaning_kpi'
+    id = Column(Integer, primary_key=True)
+    building = Column(String, index=True)
+    period = Column(String)  # e.g. "2025-Q1"
+    # Environmental
+    chem_per_sqm = Column(Float, default=0.0)
+    eco_chem_pct = Column(Float, default=0.0)
+    water_per_site = Column(Float, default=0.0)
+    waste_seg_accuracy = Column(Float, default=0.0)
+    carbon_per_visit = Column(Float, default=0.0)
+    microfibre_ratio = Column(Float, default=0.0)
+    # Social
+    staff_turnover_rate = Column(Float, default=0.0)
+    training_hours = Column(Float, default=0.0)
+    living_wage_pct = Column(Float, default=0.0)
+    accident_freq_rate = Column(Float, default=0.0)
+    absence_rate = Column(Float, default=0.0)
+    client_satisfaction = Column(Float, default=0.0)
+    # Governance
+    audit_pass_rate = Column(Float, default=0.0)
+    method_stmt_updates = Column(Float, default=0.0)
+    sla_adherence = Column(Float, default=0.0)
+    incident_report_hrs = Column(Float, default=0.0)
+    subcontractor_score = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 Base.metadata.create_all(engine)
 
 # ==================== CLIENTS & AGENTS ====================
@@ -1121,6 +1160,259 @@ def page_management():
                     st.info("Admin only: sign in to clear demo data")
 
 
+# ==================== SERVICE SCOPE & CLEANING ESG PAGES ====================
+
+def page_service_scope():
+    """ESG Scope Configuration – toggle which service lines are in scope."""
+    from service_lines import SERVICE_LINES, save_service_lines, get_active_service_lines
+
+    st.header("🔧 ESG Scope Configuration")
+    st.markdown(
+        "Select the service lines you **control** for each building. "
+        "Only active services will influence your Service ESG Score. "
+        "Deselecting a line removes it from your score without affecting the "
+        "building-level ESG portfolio view."
+    )
+
+    all_buildings = [
+        b
+        for client_data in st.session_state.clients_data.values()
+        for b in client_data.get("Buildings", [])
+    ]
+
+    if not all_buildings:
+        st.info("No buildings found. Add buildings in the Management page first.")
+        return
+
+    building = st.selectbox("Select Building", sorted(all_buildings), key="scope_building")
+
+    current_active = get_active_service_lines(session, building)
+
+    st.subheader("Service Lines")
+    st.caption(
+        "Only selected services will influence your Service ESG Score. "
+        "Score reflects active services only."
+    )
+
+    new_active: list[str] = []
+    cols = st.columns(2)
+    for i, (line, meta) in enumerate(SERVICE_LINES.items()):
+        col = cols[i % 2]
+        with col:
+            checked = col.checkbox(
+                f"{line}  *(ESG: {', '.join(meta['domains'])} | Weight: {int(meta['weight']*100)}%)*",
+                value=(line in current_active),
+                key=f"scope_{line}_{building}",
+            )
+            if checked:
+                new_active.append(line)
+
+    if st.button("💾 Save Scope Configuration", type="primary"):
+        save_service_lines(session, building, new_active)
+        st.success(
+            f"✅ Scope saved for **{building}**. "
+            f"Active services: {', '.join(new_active) if new_active else 'None'}."
+        )
+        st.rerun()
+
+    st.divider()
+    st.info(
+        "ℹ️ **Governance safeguard:** Where a metric is influenced by tenant "
+        "behaviour or landlord systems, this is flagged as 'Influencing factors "
+        "outside cleaning scope detected' in the Cleaning ESG page."
+    )
+
+
+def page_cleaning_esg():
+    """Cleaning ESG Contribution – KPI entry, RAG signals, recommendations."""
+    from service_lines import (
+        CLEANING_KPI_FIELDS,
+        compute_contribution_score,
+        get_rag_status,
+        generate_recommendations,
+        get_active_service_lines,
+        RAG_THRESHOLDS,
+    )
+
+    st.header("🧹 Cleaning ESG Performance")
+    st.markdown(
+        "Record and analyse cleaning-specific ESG KPIs. "
+        "The **Cleaning ESG Contribution Score** reflects how cleaning operations "
+        "influence the building's overall ESG rating."
+    )
+
+    all_buildings = sorted(
+        b
+        for client_data in st.session_state.clients_data.values()
+        for b in client_data.get("Buildings", [])
+    )
+    if not all_buildings:
+        st.info("No buildings found. Add buildings in the Management page first.")
+        return
+
+    col_b, col_p = st.columns(2)
+    with col_b:
+        building = st.selectbox("Building", all_buildings, key="kpi_building")
+    with col_p:
+        period = st.text_input("Period (e.g. 2025-Q1)", value="2025-Q1", key="kpi_period")
+
+    # Load latest KPI for this building/period
+    existing = (
+        session.query(CleaningKPI)
+        .filter(CleaningKPI.building == building, CleaningKPI.period == period)
+        .order_by(CleaningKPI.created_at.desc())
+        .first()
+    )
+
+    tab_entry, tab_rag, tab_recommend = st.tabs(
+        ["📝 KPI Entry", "🚦 RAG Status", "💡 Recommendations"]
+    )
+
+    # Build field groups for display
+    env_fields = {k: v for k, v in CLEANING_KPI_FIELDS.items() if v["domain"] == "E"}
+    soc_fields = {k: v for k, v in CLEANING_KPI_FIELDS.items() if v["domain"] == "S"}
+    gov_fields = {k: v for k, v in CLEANING_KPI_FIELDS.items() if v["domain"] == "G"}
+
+    def _default(field: str) -> float:
+        return float(getattr(existing, field, 0.0) or 0.0) if existing else 0.0
+
+    with tab_entry:
+        st.subheader("A. Environmental – Cleaning Impact")
+        env_vals: dict[str, float] = {}
+        c1, c2 = st.columns(2)
+        for i, (field, meta) in enumerate(env_fields.items()):
+            col = c1 if i % 2 == 0 else c2
+            env_vals[field] = col.number_input(
+                meta["label"], min_value=0.0, value=_default(field), key=f"kpi_e_{field}"
+            )
+
+        st.subheader("B. Social – Workforce & Occupant Impact")
+        soc_vals: dict[str, float] = {}
+        c1, c2 = st.columns(2)
+        for i, (field, meta) in enumerate(soc_fields.items()):
+            col = c1 if i % 2 == 0 else c2
+            soc_vals[field] = col.number_input(
+                meta["label"], min_value=0.0, value=_default(field), key=f"kpi_s_{field}"
+            )
+
+        st.subheader("C. Governance – Controls & Assurance")
+        gov_vals: dict[str, float] = {}
+        c1, c2 = st.columns(2)
+        for i, (field, meta) in enumerate(gov_fields.items()):
+            col = c1 if i % 2 == 0 else c2
+            gov_vals[field] = col.number_input(
+                meta["label"], min_value=0.0, value=_default(field), key=f"kpi_g_{field}"
+            )
+
+        all_vals = {**env_vals, **soc_vals, **gov_vals}
+
+        if st.button("💾 Save KPIs", type="primary"):
+            kpi_row = CleaningKPI(
+                building=building,
+                period=period,
+                **{f: all_vals.get(f, 0.0) for f in CLEANING_KPI_FIELDS},
+            )
+            session.add(kpi_row)
+            session.commit()
+            st.success("✅ KPIs saved successfully.")
+            st.rerun()
+
+        # Contribution score preview
+        if existing or any(v > 0 for v in all_vals.values()):
+            if any(v > 0 for v in all_vals.values()):
+                score_data = all_vals
+            else:
+                score_data = {f: getattr(existing, f, 0.0) for f in CLEANING_KPI_FIELDS}
+            score = compute_contribution_score(score_data)
+            st.divider()
+            st.metric(
+                "🏅 Cleaning ESG Contribution Score",
+                f"{score} / 100",
+                delta="Based on: chemical quality × 0.25 + waste segregation × 0.30 + training × 0.15 + carbon × 0.30",
+                delta_color="off",
+            )
+
+    with tab_rag:
+        st.subheader("🚦 RAG Status by KPI")
+        if not existing:
+            st.info("No KPI data saved yet for this building/period. Use the KPI Entry tab first.")
+        else:
+            kpi_dict = {f: float(getattr(existing, f, 0.0) or 0.0) for f in CLEANING_KPI_FIELDS}
+            rag_map = {"green": "🟢", "amber": "🟠", "red": "🔴", "grey": "⚪"}
+
+            active_lines = get_active_service_lines(session, building)
+            if "Cleaning" not in active_lines:
+                st.warning(
+                    "⚠️ Cleaning is not in the active service scope for this building. "
+                    "KPI scores are shown for reference only and do not affect your Service ESG Score."
+                )
+
+            for domain_label, fields in [
+                ("A. Environmental", env_fields),
+                ("B. Social", soc_fields),
+                ("C. Governance", gov_fields),
+            ]:
+                st.markdown(f"**{domain_label}**")
+                rows = []
+                for field, meta in fields.items():
+                    value = kpi_dict.get(field, 0.0)
+                    status = get_rag_status(field, value)
+                    cfg = RAG_THRESHOLDS.get(field, {})
+                    threshold_note = (
+                        f"Green ≥ {cfg.get('green', '–')} / Amber ≥ {cfg.get('amber', '–')}"
+                        if cfg.get("direction") == "higher_better"
+                        else f"Green ≤ {cfg.get('amber', '–')} / Amber ≤ {cfg.get('red', '–')}"
+                    )
+                    rows.append({
+                        "KPI": meta["label"],
+                        "Value": round(value, 2),
+                        "Status": f"{rag_map.get(status, '⚪')} {status.capitalize()}",
+                        "Threshold": threshold_note,
+                    })
+                import pandas as pd
+                st.dataframe(
+                    pd.DataFrame(rows),
+                    hide_index=True,
+                    width="stretch",
+                )
+
+    with tab_recommend:
+        st.subheader("💡 Intelligent Recommendations")
+        st.caption(
+            "These recommendations are operationally driven. "
+            "Only the final action in each group may have revenue impact, "
+            "and only where operationally justified."
+        )
+        if not existing:
+            st.info("No KPI data saved yet. Save KPIs to generate recommendations.")
+        else:
+            kpi_dict = {f: float(getattr(existing, f, 0.0) or 0.0) for f in CLEANING_KPI_FIELDS}
+            recs = generate_recommendations(kpi_dict)
+
+            # Check if any external factors might influence metrics
+            active_lines = get_active_service_lines(session, building)
+            if "Waste Management" not in active_lines and kpi_dict.get("waste_seg_accuracy", 0) < 90:
+                st.warning(
+                    "⚠️ **Influencing factors outside cleaning scope detected.** "
+                    "Waste segregation accuracy may be affected by the external waste "
+                    "contractor. Current scope: Cleaning only."
+                )
+
+            if not recs:
+                st.success("✅ All monitored KPIs are within acceptable thresholds. No actions required.")
+            else:
+                for rec in recs:
+                    rag_icon = {"red": "🔴", "amber": "🟠"}.get(rec["rag_status"], "⚪")
+                    with st.expander(f"{rag_icon} {rec['observation']}", expanded=(rec["rag_status"] == "red")):
+                        st.markdown("**Likely drivers:**")
+                        for d in rec["drivers"]:
+                            st.markdown(f"- {d}")
+                        st.markdown("**Recommended Actions:**")
+                        for j, a in enumerate(rec["actions"], 1):
+                            st.markdown(f"{j}. {a}")
+                        st.markdown(f"*Projected Outcome:* {rec['projected_outcome']}")
+
+
 # ==================== MAIN APP ====================
 
 def main():
@@ -1174,7 +1466,7 @@ def main():
                 st.rerun()
     
     # Navigation
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     
     with col1:
         if st.button("🏠 Home", width="stretch", key="nav_home"):
@@ -1195,8 +1487,16 @@ def main():
     with col5:
         if st.button("⚙️ Management", width="stretch", key="nav_management"):
             st.session_state.current_page = 'Management'
-    
+
     with col6:
+        if st.button("🔧 ESG Scope", width="stretch", key="nav_scope"):
+            st.session_state.current_page = 'ESG Scope'
+
+    with col7:
+        if st.button("🧹 Cleaning ESG", width="stretch", key="nav_cleaning"):
+            st.session_state.current_page = 'Cleaning ESG'
+    
+    with col8:
         if st.button("❓ Help", width="stretch", key="nav_help"):
             st.session_state.current_page = 'Help'
     
@@ -1215,6 +1515,10 @@ def main():
         page_reports()
     elif page == 'Management':
         page_management()
+    elif page == 'ESG Scope':
+        page_service_scope()
+    elif page == 'Cleaning ESG':
+        page_cleaning_esg()
     elif page == 'Help':
         page_help()
 

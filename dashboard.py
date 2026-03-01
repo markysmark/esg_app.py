@@ -8,7 +8,70 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
-from main_app import ESGEntry, session, compute_esg_scores
+from main_app import ESGEntry, CleaningKPI, session, compute_esg_scores
+from service_lines import SERVICE_LINES as _SERVICE_LINES
+
+_TOTAL_SERVICE_LINES = len(_SERVICE_LINES)
+
+
+def render_rag_summary(client_sel=None):
+    """
+    Render a RAG summary by building using the latest CleaningKPI records
+    and the service-lines contribution score.
+    """
+    from service_lines import (
+        compute_contribution_score,
+        get_active_service_lines,
+        CLEANING_KPI_FIELDS,
+        get_rag_status,
+    )
+
+    st.subheader("🚦 Cleaning ESG Contribution & RAG Summary")
+    st.caption(
+        "Contribution score = chemical quality × 0.25 + waste segregation × 0.30 "
+        "+ training hours × 0.15 + carbon per visit × 0.30. "
+        "Score reflects active services only."
+    )
+
+    # Get all buildings that have CleaningKPI data
+    q = session.query(CleaningKPI)
+    kpi_rows = q.order_by(CleaningKPI.created_at.desc()).all()
+    if not kpi_rows:
+        st.info("No cleaning KPI data recorded yet. Use the 🧹 Cleaning ESG page to add data.")
+        return
+
+    # Latest KPI per building
+    latest: dict[str, CleaningKPI] = {}
+    for row in kpi_rows:
+        if row.building not in latest:
+            latest[row.building] = row
+
+    rag_map = {"green": "🟢 Green", "amber": "🟠 Amber", "red": "🔴 Red", "grey": "⚪ N/A"}
+
+    rows = []
+    for building, kpi in latest.items():
+        kpi_dict = {f: float(getattr(kpi, f, 0.0) or 0.0) for f in CLEANING_KPI_FIELDS}
+        score = compute_contribution_score(kpi_dict)
+
+        # Overall building RAG based on key headline metrics
+        headline_metrics = ["waste_seg_accuracy", "carbon_per_visit", "audit_pass_rate", "sla_adherence"]
+        statuses = [get_rag_status(m, kpi_dict.get(m, 0.0)) for m in headline_metrics if m in kpi_dict]
+        rank = {"red": 2, "amber": 1, "green": 0, "grey": -1}
+        worst = max(statuses, key=lambda s: rank.get(s, -1), default="grey")
+
+        active = get_active_service_lines(session, building)
+        scope_note = "All services" if len(active) == _TOTAL_SERVICE_LINES else f"{len(active)} service(s) active"
+
+        rows.append({
+            "Building": building,
+            "Period": kpi.period or "—",
+            "Contribution Score": score,
+            "Overall RAG": rag_map.get(worst, "⚪ N/A"),
+            "Active Scope": scope_note,
+        })
+
+    df = pd.DataFrame(rows).sort_values("Contribution Score", ascending=False)
+    st.dataframe(df, hide_index=True, width="stretch")
 
 
 def get_portfolio_stats(client_sel=None):
@@ -513,3 +576,8 @@ def render_dashboard(client_sel=None, brand_palette=None):
         )
     else:
         st.info("No data available. Upload ESG metrics to see performance analytics.")
+
+    st.divider()
+
+    # Cleaning ESG contribution and RAG summary
+    render_rag_summary(client_sel)
