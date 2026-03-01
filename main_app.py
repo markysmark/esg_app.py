@@ -481,6 +481,53 @@ def log_action(building, owner, action, due_date=None, status=None):
     return al
 
 
+def _load_cleaning_kpi_demo_data(buildings: list, period: str = "2025-Q1") -> None:
+    """Insert CleaningKPI demo records showing good cleaning performance for the given buildings.
+
+    Values are set to exceed the 'green' RAG thresholds defined in service_lines.py so
+    that the cleaning company is shown to have good performance in the dashboard RAG summary.
+    Records are only inserted when no existing record exists for the same building/period.
+    """
+    good_performance_kpis = {
+        # Environmental – all green
+        "chem_per_sqm":        0.3,   # green: <= 0.5
+        "eco_chem_pct":        88.0,  # green: >= 75
+        "water_per_site":      35.0,  # green: <= 50
+        "waste_seg_accuracy":  96.0,  # green: >= 95
+        "carbon_per_visit":    3.0,   # green: <= 5
+        "microfibre_ratio":    80.0,  # green: >= 75
+        # Social – all green
+        "staff_turnover_rate": 12.0,  # green: <= 20
+        "training_hours":      36.0,  # green: >= 35
+        "living_wage_pct":     100.0, # green: >= 100
+        "accident_freq_rate":  0.2,   # green: <= 0.5
+        "absence_rate":        3.5,   # green: <= 5
+        "client_satisfaction": 8.5,   # green: >= 8
+        # Governance – all green
+        "audit_pass_rate":     93.0,  # green: >= 90
+        "method_stmt_updates": 1.0,   # green: <= 2
+        "sla_adherence":       97.0,  # green: >= 95
+        "incident_report_hrs": 2.0,   # green: <= 4
+        "subcontractor_score": 85.0,  # green: >= 80
+    }
+
+    for building in buildings:
+        existing = (
+            session.query(CleaningKPI)
+            .filter(CleaningKPI.building == building, CleaningKPI.period == period)
+            .first()
+        )
+        if not existing:
+            kpi_row = CleaningKPI(
+                building=building,
+                period=period,
+                **good_performance_kpis,
+            )
+            session.add(kpi_row)
+
+    session.commit()
+
+
 def load_savills_demo_data():
     """Load realistic demo data for Savills' managed buildings.
 
@@ -579,11 +626,22 @@ def load_savills_demo_data():
                 session.add(entry)
 
     session.commit()
+
+    # Seed CleaningKPI records for each Savills building showing good performance
+    savills_buildings = [d['building'] for d in demo_buildings]
+    _load_cleaning_kpi_demo_data(savills_buildings, period="2025-Q1")
+
     log_action('', 'system', 'Savills demo data loaded', status='demo')
 
 
 def clear_savills_demo_data():
     """Clear all demo data for Savills (admin only)"""
+    savills_buildings_q = (
+        session.query(ESGEntry.building).filter(ESGEntry.agent == 'Savills')
+    )
+    session.query(CleaningKPI).filter(
+        CleaningKPI.building.in_(savills_buildings_q)
+    ).delete(synchronize_session=False)
     deleted_count = session.query(ESGEntry).filter(ESGEntry.agent == 'Savills').delete()
     session.commit()
     log_action('', 'admin', f'Cleared {deleted_count} Savills demo data records', status='admin')
@@ -706,11 +764,22 @@ def load_test_client_data():
             session.add(entry)
     
     session.commit()
+
+    # Seed CleaningKPI records for each Test Client building showing good performance
+    test_building_names = [d['building'] for d in test_buildings]
+    _load_cleaning_kpi_demo_data(test_building_names, period="2025-Q1")
+
     log_action('', 'system', 'Test Client demo data loaded', status='demo')
 
 
 def clear_test_client_data():
     """Clear all demo data for Test Client (admin only)"""
+    test_buildings_q = (
+        session.query(ESGEntry.building).filter(ESGEntry.client == 'Test Client')
+    )
+    session.query(CleaningKPI).filter(
+        CleaningKPI.building.in_(test_buildings_q)
+    ).delete(synchronize_session=False)
     deleted_count = session.query(ESGEntry).filter(ESGEntry.client == 'Test Client').delete()
     session.commit()
     log_action('', 'admin', f'Cleared {deleted_count} Test Client demo data records', status='admin')
