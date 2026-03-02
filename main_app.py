@@ -277,7 +277,7 @@ if 'clients_data' not in st.session_state:
     st.session_state.clients_data = load_clients_data()
 
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'Dashboard'
+    st.session_state.current_page = 'Home'
 
 if 'user' not in st.session_state:
     st.session_state.user = None
