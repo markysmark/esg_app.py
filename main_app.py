@@ -481,6 +481,35 @@ def log_action(building, owner, action, due_date=None, status=None):
     return al
 
 
+def _ensure_clients_data_registered(entries: list) -> None:
+    """Ensure every client, agent and building in *entries* appears in clients_agents.json.
+
+    Each item in *entries* should be a dict with at least the keys ``client``,
+    ``agent`` and ``building``.  Missing clients are created; missing agents and
+    buildings are appended to the existing lists.  The file is only written when
+    at least one change is required.
+    """
+    data = load_clients_data()
+    changed = False
+    for item in entries:
+        client = item.get('client', '')
+        agent = item.get('agent', '')
+        building = item.get('building', '')
+        if not client:
+            continue
+        if client not in data:
+            data[client] = {'Agents': [], 'Buildings': []}
+            changed = True
+        if agent and agent not in data[client].get('Agents', []):
+            data[client]['Agents'].append(agent)
+            changed = True
+        if building and building not in data[client].get('Buildings', []):
+            data[client]['Buildings'].append(building)
+            changed = True
+    if changed:
+        save_clients_data(data)
+
+
 def _load_cleaning_kpi_demo_data(buildings: list, period: str = "2025-Q1") -> None:
     """Insert CleaningKPI demo records showing good cleaning performance for the given buildings.
 
@@ -631,6 +660,10 @@ def load_savills_demo_data():
     savills_buildings = [d['building'] for d in demo_buildings]
     _load_cleaning_kpi_demo_data(savills_buildings, period="2025-Q1")
 
+    # Register all demo clients, agents and buildings in clients_agents.json so
+    # they appear in every dropdown and selector immediately after loading.
+    _ensure_clients_data_registered(demo_buildings)
+
     log_action('', 'system', 'Savills demo data loaded', status='demo')
 
 
@@ -768,6 +801,10 @@ def load_test_client_data():
     # Seed CleaningKPI records for each Test Client building showing good performance
     test_building_names = [d['building'] for d in test_buildings]
     _load_cleaning_kpi_demo_data(test_building_names, period="2025-Q1")
+
+    # Register all demo clients, agents and buildings in clients_agents.json so
+    # they appear in every dropdown and selector immediately after loading.
+    _ensure_clients_data_registered(test_buildings)
 
     log_action('', 'system', 'Test Client demo data loaded', status='demo')
 
@@ -1169,6 +1206,7 @@ def page_management():
                     if st.button("📥 Load Savills Demo Data", use_container_width=True, type="primary", key="load_savills"):
                         try:
                             load_savills_demo_data()
+                            st.session_state.clients_data = load_clients_data()
                             st.success("✅ Savills demo data loaded successfully!")
                             st.info("View the data in the Dashboard or Raw Data tab")
                             st.rerun()
@@ -1210,6 +1248,7 @@ def page_management():
                 if st.button("📥 Load Test Client Data", use_container_width=True, type="primary", key="load_test"):
                     try:
                         load_test_client_data()
+                        st.session_state.clients_data = load_clients_data()
                         st.success("✅ Test Client demo data loaded successfully!")
                         st.info("View the data in the Dashboard or Raw Data tab")
                         st.rerun()
