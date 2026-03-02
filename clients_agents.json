@@ -12,20 +12,36 @@
       "Centre Point",
       "30 St Mary Axe",
       "Cheapside House",
-      "The Shard"
+      "The Shard",
+      "St Pauls House"
     ]
   },
   "British Land": {
-    "Agents": ["CBRE", "Savills"],
-    "Buildings": ["The Leadenhall Building", "Broadgate Tower"]
+    "Agents": [
+      "CBRE",
+      "Savills"
+    ],
+    "Buildings": [
+      "The Leadenhall Building",
+      "Broadgate Tower"
+    ]
   },
   "Landsec": {
-    "Agents": ["Knight Frank"],
-    "Buildings": ["20 Fenchurch Street", "One New Change"]
+    "Agents": [
+      "Knight Frank"
+    ],
+    "Buildings": [
+      "20 Fenchurch Street",
+      "One New Change"
+    ]
   },
   "Mitsubishi Estate": {
-    "Agents": ["JLL"],
-    "Buildings": ["8 Bishopsgate"]
+    "Agents": [
+      "JLL"
+    ],
+    "Buildings": [
+      "8 Bishopsgate"
+    ]
   },
   "Test Client Inc": {
     "Agents": [
@@ -33,6 +49,24 @@
     ],
     "Buildings": [
       "Test Tower"
+    ]
+  },
+  "Test Client": {
+    "Agents": [
+      "CBRE",
+      "JLL",
+      "Knight Frank",
+      "Savills"
+    ],
+    "Buildings": [
+      "Tech Hub Downtown",
+      "Innovation Plaza",
+      "Green Heights Tower",
+      "Commerce Center East",
+      "Sustainable Park West",
+      "Executive Plaza South",
+      "Urban Living Complex",
+      "Corporate Crown"
     ]
   }
 }
