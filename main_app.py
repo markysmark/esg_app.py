@@ -272,18 +272,6 @@ def save_clients_data(data):
         json.dump(data, f, indent=2)
 
 
-# Initialize session state
-if 'clients_data' not in st.session_state:
-    st.session_state.clients_data = load_clients_data()
-
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'Dashboard'
-
-if 'user' not in st.session_state:
-    st.session_state.user = None
-if 'user_role' not in st.session_state:
-    st.session_state.user_role = None
-
 # ==================== CORE FUNCTIONS ====================
 
 def compute_esg_scores(entry: ESGEntry):
