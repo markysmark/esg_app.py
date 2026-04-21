@@ -350,6 +350,7 @@ def render_export_interface():
     """
     st.header("📄 Export & Reporting")
     st.markdown("Generate and export ESG data in multiple formats for analysis and compliance reporting.")
+    st.info("Workflow: choose filters and dates → preview records → export CSV/Excel/JSON or generate a PDF report.")
     
     # Filter section
     st.subheader("🔍 Select Data to Export")
@@ -408,6 +409,10 @@ def render_export_interface():
     
     with col2:
         end_date = st.date_input("End Date", value=datetime.now().date(), key='export_end')
+
+    if start_date > end_date:
+        st.error("Start Date must be on or before End Date.")
+        return
     
     st.divider()
     
@@ -474,15 +479,20 @@ def render_export_interface():
                 pdf_data = generate_pdf_report(client_sel, agent_sel, building_sel, start_date, end_date)
                 
                 if pdf_data:
-                    st.download_button(
-                        label="⬇️ Download PDF",
-                        data=pdf_data,
-                        file_name=f"esg_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                        mime="application/pdf"
-                    )
+                    st.session_state["latest_pdf_export"] = pdf_data
+                    st.session_state["latest_pdf_export_name"] = f"esg_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                     st.success("✅ PDF report generated successfully!")
+                    st.caption("After download, open the PDF in your viewer and use Print (Ctrl/Cmd+P) for hard-copy output.")
                 else:
                     st.warning("PDF generation requires reportlab library")
+    if st.session_state.get("latest_pdf_export"):
+        st.download_button(
+            label="⬇️ Download PDF",
+            data=st.session_state["latest_pdf_export"],
+            file_name=st.session_state.get("latest_pdf_export_name", "esg_report.pdf"),
+            mime="application/pdf",
+            help="Download the latest generated PDF report."
+        )
     
     st.divider()
     

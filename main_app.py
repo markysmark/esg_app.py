@@ -887,23 +887,23 @@ def page_home():
     # Welcome section
     st.markdown("""
     ### Welcome to ESG Intelligence
-    
+
     This platform enables you to:
     - **📥 Upload** bulk ESG data for multiple properties
     - **📊 Analyze** environmental, social, and governance performance
     - **📄 Generate** comprehensive compliance reports
     - **📈 Track** performance trends over time
     - **📤 Export** data in multiple formats
-    
+
     ---
-    
-    ### Getting Started
-    
-    **1. Upload Data** → Use the Data Upload page to import your ESG metrics  
-    **2. View Dashboard** → See your portfolio performance at a glance  
-    **3. Manage Sites** → Add clients, agents, and buildings  
-    **4. Generate Reports** → Create detailed ESG reports  
-    **5. Export Data** → Download your data in CSV, Excel, or PDF format  
+
+    ### First-Run Checklist
+
+    **1. Sign in** → Use the sidebar account panel  
+    **2. Upload Data** → Import CSV/Excel ESG metrics  
+    **3. Review Dashboard** → Confirm score and data quality trends  
+    **4. Generate Report** → Create PDF/CSV/Excel outputs  
+    **5. Manage Structure** → Add missing clients, agents, or buildings
     """)
     
     st.divider()
@@ -952,6 +952,13 @@ def page_help():
     The content is drawn from the project README so that users can access
     installation and usage guidance without leaving the Streamlit interface.
     """
+    quickstart = (
+        "## Quickstart\n"
+        "1. Sign in from the sidebar account panel.\n"
+        "2. Open **Upload Data** and import a CSV/Excel file.\n"
+        "3. Review **Dashboard** metrics.\n"
+        "4. Use **Reports** to export PDF/CSV/Excel output.\n\n"
+    )
     try:
         with open("README.md", "r", encoding="utf-8") as f:
             readme = f.read()
@@ -959,7 +966,7 @@ def page_help():
         readme = "Unable to load instructions."
     # Streamlit will emit warnings about missing ScriptRunContext when
     # invoked outside `streamlit run`; these are harmless during tests.
-    st.markdown(readme, unsafe_allow_html=True)
+    st.markdown(f"{quickstart}{readme}", unsafe_allow_html=True)
 
 
 def page_upload_data():

@@ -7,6 +7,7 @@ from data_upload import (
     save_mapping_profiles,
     PROFILE_FILE,
     profile_option_index,
+    validate_required_fields,
 )
 
 
@@ -48,3 +49,13 @@ def test_profile_option_index_returns_correct_indices():
     # Missing or unknown keys fall back to the default option
     assert profile_option_index(profile, "missing", columns) == 0
     assert profile_option_index({}, "building", columns) == 0
+
+
+def test_validate_required_fields_uses_user_friendly_names():
+    is_valid, message = validate_required_fields(
+        df=None,
+        field_mapping={"building": None}
+    )
+    assert is_valid is False
+    assert "Building Name" in message
+    assert "energy_kwh" not in message

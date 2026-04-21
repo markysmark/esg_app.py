@@ -11,6 +11,15 @@ from main_app import ESGEntry, session, log_action, _utcnow
 
 # persistent mapping profiles
 PROFILE_FILE = "mapping_profiles.json"
+FIELD_LABELS = {
+    'building': 'Building Name',
+    'waste_tonnes': 'Waste (Tonnes)',
+    'employee_count': 'Staff Count',
+    'hours_worked': 'Total Hours',
+    'chem_litres': 'Chemicals (L)',
+    'eco_chem_pct': 'Eco Chemicals %',
+    'energy_kwh': 'Energy (kWh)',
+}
 
 
 def load_mapping_profiles():
@@ -72,7 +81,8 @@ def validate_required_fields(df, field_mapping):
     missing_fields = [f for f in required_fields if field_mapping.get(f) is None]
     
     if missing_fields:
-        return False, f"Missing required field mappings: {', '.join(missing_fields)}"
+        pretty_fields = [FIELD_LABELS.get(f, f) for f in missing_fields]
+        return False, f"Missing required field mappings: {', '.join(pretty_fields)}"
     
     # Check if mapped columns exist in DataFrame
     missing_columns = [field_mapping[f] for f in required_fields 
@@ -301,6 +311,7 @@ def render_upload_interface():
             # Column mapping section
             st.subheader("🔀 Map Your Columns")
             st.markdown("Match your file columns to ESG data fields:")
+            st.info("Quick flow: map required columns → preview validation highlights → import into a client/agent.")
 
             # mapping profile selector
             profiles = load_mapping_profiles()
