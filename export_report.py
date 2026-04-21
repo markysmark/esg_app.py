@@ -365,7 +365,7 @@ def render_export_interface():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 help="Download as Excel - With formatting and formulas"
             )
-        except:
+        except Exception:
             st.info("Excel export unavailable")
     
     with col3:

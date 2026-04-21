@@ -6,9 +6,8 @@ Handles bulk upload of ESG data from CSV/Excel files with validation and mapping
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
 import json
-from main_app import ESGEntry, session, log_action
+from main_app import ESGEntry, session, log_action, _utcnow
 
 # persistent mapping profiles
 PROFILE_FILE = "mapping_profiles.json"
@@ -191,7 +190,7 @@ def process_bulk_upload(df, field_mapping, client, agent, overwrite=False):
             if field_mapping.get('timestamp') and field_mapping['timestamp'] in row.index:
                 try:
                     timestamp = pd.to_datetime(row.get(field_mapping['timestamp']))
-                except:
+                except Exception:
                     pass
             
             # Check for duplicate building data in current batch
@@ -216,7 +215,7 @@ def process_bulk_upload(df, field_mapping, client, agent, overwrite=False):
                 eco_chem_pct=eco_chem_pct,
                 employee_count=employee_count,
                 hours_worked=hours_worked,
-                timestamp=timestamp or datetime.utcnow()
+                timestamp=timestamp or _utcnow()
             )
             
             session.add(new_entry)

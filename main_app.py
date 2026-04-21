@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 import smtplib
@@ -15,6 +15,16 @@ from email.message import EmailMessage
 from theme import apply_theme, brand_palette
 import threading
 import time
+
+def _utcnow() -> datetime:
+    """Return the current UTC time as a naive datetime.
+
+    Replaces the deprecated ``datetime.utcnow()`` while keeping the same
+    naive-datetime contract expected by existing database columns and
+    comparison logic throughout the application.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 # ==================== DATABASE SETUP ====================
 Base = declarative_base()
@@ -36,7 +46,7 @@ class ESGEntry(Base):
     chem_litres = Column(Float, default=0.0)
     eco_chem_pct = Column(Float, default=0.0)
     energy_kwh = Column(Float, default=0.0)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=_utcnow)
 
 
 class ScoreSnapshot(Base):
@@ -50,7 +60,7 @@ class ScoreSnapshot(Base):
     s_score = Column(Float)
     g_score = Column(Float)
     period = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class ReportRun(Base):
@@ -64,7 +74,7 @@ class ReportRun(Base):
     scoring_version = Column(String)
     file_reference = Column(String)
     snapshot_ids = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class ObligationStatus(Base):
@@ -93,7 +103,7 @@ class EvidenceRegister(Base):
     building = Column(String)
     item_type = Column(String)
     reference = Column(String)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime, default=_utcnow)
 
 
 class EditHistory(Base):
@@ -104,7 +114,7 @@ class EditHistory(Base):
     changes = Column(Text)  # json
     approved_by = Column(String)
     approved_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class ServiceLineConfig(Base):
@@ -114,7 +124,7 @@ class ServiceLineConfig(Base):
     building = Column(String, index=True)
     service_line = Column(String)
     active = Column(Integer, default=1)  # 1 = active, 0 = inactive
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=_utcnow)
 
 
 class CleaningKPI(Base):
@@ -143,7 +153,7 @@ class CleaningKPI(Base):
     sla_adherence = Column(Float, default=0.0)
     incident_report_hrs = Column(Float, default=0.0)
     subcontractor_score = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 Base.metadata.create_all(engine)
@@ -190,7 +200,7 @@ def load_dummy_entries(client, agent, count=5):
             eco_chem_pct=80.0,
             employee_count=50 + i * 5,
             hours_worked=2000 + i * 100,
-            timestamp=datetime.utcnow()
+            timestamp=_utcnow()
         )
         session.add(e)
     session.commit()
@@ -338,7 +348,7 @@ def grade_data_quality(client, agent=None, building=None):
         latest = max(entries, key=lambda e: e.timestamp or datetime.min)
         filled = sum(1 for f in expected_fields if getattr(latest, f, None) not in (None, 0, "", 0.0))
         current_data_pct = int((filled / len(expected_fields)) * 100)
-        days = (datetime.utcnow() - latest.timestamp).days if latest.timestamp else 365
+        days = (_utcnow() - latest.timestamp).days if latest.timestamp else 365
         avg_confidence = 1.0 if days <= 30 else max(0.0, 1.0 - (days / 365.0))
     else:
         current_data_pct = 0
@@ -408,7 +418,7 @@ def perform_quality_checks(send_email=True):
                 findings['stale_clients'].append((client, 'no data'))
                 continue
             latest = max(q, key=lambda e: e.timestamp or datetime.min)
-            days = (datetime.utcnow() - (latest.timestamp or datetime.utcnow())).days
+            days = (_utcnow() - (latest.timestamp or _utcnow())).days
             if days >= STALE_DAYS:
                 findings['stale_clients'].append((client, days))
                 if send_email:
@@ -618,7 +628,7 @@ def load_savills_demo_data():
     # Must be >= 2 so that the improvement gradient calculation is well-defined.
     HISTORY_MONTHS = 12
 
-    now = datetime.utcnow()
+    now = _utcnow()
 
     for data in demo_buildings:
         for month_offset in range(HISTORY_MONTHS - 1, -1, -1):
@@ -792,7 +802,7 @@ def load_test_client_data():
                 eco_chem_pct=data['eco_chem_pct'],
                 employee_count=data['employee_count'],
                 hours_worked=data['hours_worked'],
-                timestamp=datetime.utcnow()
+                timestamp=_utcnow()
             )
             session.add(entry)
     
@@ -1030,10 +1040,13 @@ def page_management():
                 })
             
             df = pd.DataFrame(data)
-            # Prefer experimental_data_editor when available for inline edits
-            editor_supported = hasattr(st, 'experimental_data_editor')
+            # Prefer st.data_editor (Streamlit ≥ 1.23); fall back to read-only dataframe
+            editor_supported = hasattr(st, 'data_editor') or hasattr(st, 'experimental_data_editor')
             if editor_supported:
-                edited = st.experimental_data_editor(df, num_rows="dynamic")
+                if hasattr(st, 'data_editor'):
+                    edited = st.data_editor(df, num_rows="dynamic")
+                else:
+                    edited = st.experimental_data_editor(df, num_rows="dynamic")
                 col1, col2 = st.columns([1, 1])
                 with col1:
                     st.download_button("📥 Download CSV", edited.to_csv(index=False), "esg_data.csv", "text/csv")
@@ -1079,7 +1092,7 @@ def page_management():
                                         editor=st.session_state.get('user') or 'unknown',
                                         changes=json.dumps(changes),
                                         approved_by=approver,
-                                        approved_at=datetime.utcnow()
+                                        approved_at=_utcnow()
                                     )
                                     session.add(eh)
                         session.commit()
@@ -1547,7 +1560,10 @@ def main():
                 while True:
                     time.sleep(interval)
                     try:
-                        check_quality_alerts()
+                        # Use the headless function – check_quality_alerts renders
+                        # Streamlit UI elements and must not be called from a
+                        # background thread outside a Streamlit script run context.
+                        perform_quality_checks(send_email=True)
                     except Exception:
                         pass
 

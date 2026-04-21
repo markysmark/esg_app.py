@@ -1,11 +1,10 @@
 import os
-from datetime import datetime
-from main_app import EvidenceRegister, session
+from main_app import EvidenceRegister, session, _utcnow
 
 
 def test_evidence_register_create_and_query():
     # create a fake record
-    now = datetime.utcnow()
+    now = _utcnow()
     ref = os.path.join('evidence', f'test_{now.strftime("%Y%m%dT%H%M%S")}.txt')
     os.makedirs('evidence', exist_ok=True)
     with open(ref, 'w') as f:

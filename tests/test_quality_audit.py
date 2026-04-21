@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from main_app import (
     grade_data_quality, log_action, session,
-    ESGEntry, EvidenceRegister, ActionLog
+    ESGEntry, EvidenceRegister, ActionLog, _utcnow
 )
 
 
@@ -37,7 +37,7 @@ def test_grade_data_quality_with_data():
     session.add(ESGEntry(client="C1", agent="A1", building="B1",
                          waste_tonnes=0, energy_kwh=0, chem_litres=1,
                          eco_chem_pct=100, employee_count=10, hours_worked=400,
-                         timestamp=datetime.utcnow()))
+                         timestamp=_utcnow()))
     session.add(EvidenceRegister(building="B1", item_type="doc", reference="r2"))
     session.commit()
     res2 = grade_data_quality("C1", agent="A1", building="B1")

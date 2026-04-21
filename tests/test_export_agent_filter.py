@@ -1,7 +1,6 @@
 """Tests for agent-based building filter in export_report.py."""
 
-from datetime import datetime
-from main_app import ESGEntry, session
+from main_app import ESGEntry, session, _utcnow
 from export_report import get_esg_data_for_export
 
 
@@ -16,7 +15,7 @@ def _add_entry(client, agent, building):
         eco_chem_pct=80.0,
         employee_count=100,
         hours_worked=4000.0,
-        timestamp=datetime.utcnow(),
+        timestamp=_utcnow(),
     )
     session.add(entry)
     session.commit()
