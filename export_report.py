@@ -121,52 +121,112 @@ def export_to_excel(df, filename):
 
 def generate_pdf_report(client, agent, building, start_date, end_date):
     """
-    Generate comprehensive PDF report.
+    Generate comprehensive PDF report with Nexus-Opus branding.
     Uses ReportLab to create professional PDF output.
     """
     if not REPORTLAB_AVAILABLE:
         return None
-    
+
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
     from reportlab.lib import colors
-    
+
+    # ── Nexus-Opus brand colours ──────────────────────────────────────────
+    NEXUS_NAVY      = colors.HexColor('#1A202C')
+    NEXUS_TEAL      = colors.HexColor('#0D9488')
+    OPUS_GOLD       = colors.HexColor('#D97706')
+    SURFACE         = colors.HexColor('#E2E8F0')
+    ROW_ALT_BG      = colors.HexColor('#EDF7F6')  # teal-tinted alternate row
+
     # Get data
     esg_data = get_esg_data_for_export(client, agent, building, start_date, end_date)
     dq = grade_data_quality(client, agent, building)
-    
+
     # Create PDF
     pdf_buffer = BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
+    doc = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=A4,
+        leftMargin=0.85 * inch,
+        rightMargin=0.85 * inch,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+    )
     story = []
     styles = getSampleStyleSheet()
-    
-    # Custom styles
+
+    # ── Custom paragraph styles ───────────────────────────────────────────
+    brand_label_style = ParagraphStyle(
+        'BrandLabel',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=NEXUS_TEAL,
+        fontName='Helvetica',
+        spaceAfter=0,
+        letterSpacing=2,
+    )
+    brand_name_style = ParagraphStyle(
+        'BrandName',
+        parent=styles['Heading1'],
+        fontSize=22,
+        textColor=colors.white,
+        fontName='Helvetica-Bold',
+        spaceAfter=2,
+        leading=26,
+    )
+    brand_sub_style = ParagraphStyle(
+        'BrandSub',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=NEXUS_TEAL,
+        fontName='Helvetica',
+        spaceAfter=0,
+        letterSpacing=1.5,
+    )
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=24,
-        textColor=colors.HexColor('#102A43'),
+        fontSize=20,
+        textColor=NEXUS_NAVY,
         spaceAfter=10,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
-    
     heading_style = ParagraphStyle(
         'CustomHeading',
         parent=styles['Heading2'],
-        fontSize=14,
-        textColor=colors.HexColor('#F5A623'),
-        spaceAfter=10,
-        fontName='Helvetica-Bold'
+        fontSize=13,
+        textColor=NEXUS_TEAL,
+        spaceAfter=8,
+        fontName='Helvetica-Bold',
     )
-    
-    # Add content
+
+    # ── Cover block ───────────────────────────────────────────────────────
+    cover_data = [[
+        Paragraph("NEXUS · OPUS", brand_name_style),
+        Paragraph("ESG INTELLIGENCE REPORT", brand_label_style),
+    ]]
+    cover_table = Table(cover_data, colWidths=[6.5 * inch])
+    cover_table.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), NEXUS_NAVY),
+        ('TOPPADDING',    (0, 0), (-1, -1), 18),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 18),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 20),
+        ('ROUNDEDCORNERS', [8]),
+    ]))
+    story.append(cover_table)
+    story.append(Spacer(1, 0.25 * inch))
+
+    # Teal rule under cover block
+    story.append(HRFlowable(
+        width="100%", thickness=2, color=NEXUS_TEAL, spaceAfter=0.2 * inch,
+    ))
+
+    # ── Report metadata ───────────────────────────────────────────────────
     story.append(Paragraph("ESG Intelligence Report", title_style))
-    story.append(Spacer(1, 0.3*inch))
-    
-    # Report info
+    story.append(Spacer(1, 0.15 * inch))
+
     scope = []
     if client:
         scope.append(f"Client: {client}")
@@ -174,25 +234,30 @@ def generate_pdf_report(client, agent, building, start_date, end_date):
         scope.append(f"Agent: {agent}")
     if building:
         scope.append(f"Building: {building}")
-    
+
     scope_text = " | ".join(scope) if scope else "Portfolio"
     story.append(Paragraph(f"<b>Scope:</b> {scope_text}", styles['Normal']))
-    story.append(Paragraph(f"<b>Period:</b> {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}", styles['Normal']))
-    story.append(Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-    story.append(Spacer(1, 0.2*inch))
-    
-    # Executive Summary
+    story.append(Paragraph(
+        f"<b>Period:</b> {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        styles['Normal'],
+    ))
+    story.append(Paragraph(
+        f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        styles['Normal'],
+    ))
+    story.append(Spacer(1, 0.2 * inch))
+
+    # ── Executive Summary ─────────────────────────────────────────────────
     story.append(Paragraph("Executive Summary", heading_style))
     story.append(Paragraph(f"Data Quality Grade: <b>{dq['grade']}</b>", styles['Normal']))
     story.append(Paragraph(f"Data Completeness: {dq['current_data_pct']}%", styles['Normal']))
     story.append(Paragraph(f"Evidence Coverage: {dq['obligations_with_evidence_pct']}%", styles['Normal']))
-    story.append(Spacer(1, 0.2*inch))
-    
-    # Data table
+    story.append(Spacer(1, 0.2 * inch))
+
+    # ── Data table ────────────────────────────────────────────────────────
     if not esg_data.empty:
         story.append(Paragraph("ESG Metrics Detail", heading_style))
-        
-        # Create summary statistics
+
         summary_data = [
             ['Metric', 'Value'],
             ['Total Records', str(len(esg_data))],
@@ -203,29 +268,29 @@ def generate_pdf_report(client, agent, building, start_date, end_date):
             ['Total Waste (T)', f"{esg_data['Waste (Tonnes)'].astype(float).sum():.1f}"],
             ['Total Energy (kWh)', f"{esg_data['Energy (kWh)'].astype(float).sum():,.0f}"],
         ]
-        
-        summary_table = Table(summary_data, colWidths=[3*inch, 3*inch])
+
+        summary_table = Table(summary_data, colWidths=[3 * inch, 3 * inch])
         summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#102A43')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND',    (0, 0), (-1, 0), NEXUS_NAVY),
+            ('TEXTCOLOR',     (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME',      (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE',      (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND',    (0, 1), (-1, -1), colors.HexColor('#F8FAFC')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, ROW_ALT_BG]),
+            ('GRID',          (0, 0), (-1, -1), 0.5, SURFACE),
+            ('LINEBELOW',     (0, 0), (-1, 0), 2, NEXUS_TEAL),
         ]))
-        
+
         story.append(summary_table)
-        story.append(Spacer(1, 0.2*inch))
-    
-    # Recommendations
+        story.append(Spacer(1, 0.2 * inch))
+
+    # ── Recommendations ───────────────────────────────────────────────────
     story.append(Paragraph("Recommendations", heading_style))
-    
-    # Determine recommendations based on scores
+
     recommendations = []
-    
-    # Get latest entry for recommendations
+
     q = session.query(ESGEntry)
     if client:
         q = q.filter(ESGEntry.client == client)
@@ -233,25 +298,48 @@ def generate_pdf_report(client, agent, building, start_date, end_date):
         q = q.filter(ESGEntry.agent == agent)
     if building:
         q = q.filter(ESGEntry.building == building)
-    
+
     latest = q.order_by(ESGEntry.timestamp.desc()).first()
-    
+
     if latest:
         e, s, g, esg = compute_esg_scores(latest)
-        
+
         if e < 50:
-            recommendations.append("🔴 Environmental Score Below Target - Increase waste reduction and energy efficiency initiatives")
+            recommendations.append(
+                "Environmental Score Below Target – Increase waste reduction and energy efficiency initiatives"
+            )
         if s < 50:
-            recommendations.append("🔴 Social Score Below Target - Enhance employee wellbeing and community engagement programs")
+            recommendations.append(
+                "Social Score Below Target – Enhance employee wellbeing and community engagement programs"
+            )
         if g < 50:
-            recommendations.append("🔴 Governance Score Below Target - Strengthen compliance documentation and evidence collection")
+            recommendations.append(
+                "Governance Score Below Target – Strengthen compliance documentation and evidence collection"
+            )
         if esg > 80:
-            recommendations.append("🟢 Strong Overall Performance - Continue current initiatives and consider best practice sharing")
-    
+            recommendations.append(
+                "Strong Overall Performance – Continue current initiatives and consider best practice sharing"
+            )
+
     for rec in recommendations:
         story.append(Paragraph("• " + rec, styles['Normal']))
-    
-    # Build PDF
+
+    # ── Footer watermark ──────────────────────────────────────────────────
+    story.append(Spacer(1, 0.4 * inch))
+    story.append(HRFlowable(width="100%", thickness=1, color=NEXUS_TEAL, spaceAfter=6))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#718096'),
+        alignment=1,  # centre
+    )
+    story.append(Paragraph(
+        f"Nexus-Opus ESG Intelligence Platform  ·  Confidential  ·  "
+        f"Generated {datetime.now().strftime('%Y-%m-%d')}",
+        footer_style,
+    ))
+
     doc.build(story)
     return pdf_buffer.getvalue()
 

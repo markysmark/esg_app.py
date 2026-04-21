@@ -12,7 +12,7 @@ import json
 import os
 import smtplib
 from email.message import EmailMessage
-from theme import apply_theme, brand_palette
+from theme import apply_theme, brand_palette, render_sidebar_logo
 import threading
 import time
 
@@ -1547,9 +1547,9 @@ def main():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'Home'
     
-    # Top banner - Clean layout
-    st.title("🌍 ESG Intelligence Platform")
-    st.caption("Corporate ESG Data Management & Analytics")
+    # Top banner – Nexus-Opus brand header
+    st.title("Nexus-Opus | ESG Intelligence")
+    st.caption("Precision FM Reporting & ESG Analytics · Powered by Nexus-Opus")
     # run simple data quality checks at startup
     check_quality_alerts()
     # schedule periodic checks in background once per process
@@ -1575,6 +1575,9 @@ def main():
 
     # simple login UI in the sidebar
     with st.sidebar:
+        # ── Nexus-Opus brand logo ──────────────────────────────────────
+        render_sidebar_logo()
+        st.divider()
         st.header("Account")
         if not st.session_state.get('user'):
             user_in = st.text_input("Username", key="login_user")
