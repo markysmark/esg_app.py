@@ -476,13 +476,23 @@ def _verify_password(candidate: str, stored: str) -> bool:
 
     Supported formats:
     - Plaintext (legacy): "secret"
-    - SHA-256 digest: "sha256$<hex-digest>"
+    - PBKDF2-SHA256 digest: "pbkdf2_sha256$<iterations>$<salt>$<hex-digest>"
     """
-    if not stored:
+    if candidate is None or not stored:
         return False
-    if isinstance(stored, str) and stored.startswith("sha256$"):
-        digest = hashlib.sha256((candidate or "").encode("utf-8")).hexdigest()
-        return hmac.compare_digest(digest, stored.split("$", 1)[1])
+    if isinstance(stored, str) and stored.startswith("pbkdf2_sha256$"):
+        try:
+            _, iter_s, salt, expected = stored.split("$", 3)
+            iterations = int(iter_s)
+            digest = hashlib.pbkdf2_hmac(
+                "sha256",
+                candidate.encode("utf-8"),
+                salt.encode("utf-8"),
+                iterations,
+            ).hex()
+            return hmac.compare_digest(digest, expected)
+        except Exception:
+            return False
     return hmac.compare_digest(candidate or "", str(stored))
 
 

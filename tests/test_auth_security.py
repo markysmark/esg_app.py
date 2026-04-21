@@ -16,16 +16,22 @@ def test_admin_login_works_when_env_var_is_set(monkeypatch):
     assert auth["role"] == "admin"
 
 
-def test_user_login_supports_sha256_password_hash(monkeypatch, tmp_path):
+def test_user_login_supports_pbkdf2_password_hash(monkeypatch, tmp_path):
     users_file = tmp_path / "users.json"
     password = "p@ssw0rd!"
-    digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    salt = "unit-test-salt"
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        100000,
+    ).hex()
     users_file.write_text(
         json.dumps(
             {
                 "users": {
                     "alice": {
-                        "password_hash": f"sha256${digest}",
+                        "password_hash": f"pbkdf2_sha256$100000${salt}${digest}",
                         "role": "user",
                     }
                 }
