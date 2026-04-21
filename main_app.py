@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 import json
 import os
 import smtplib
+import hashlib
+import hmac
 from email.message import EmailMessage
 from theme import apply_theme, brand_palette, render_sidebar_logo
 import threading
@@ -469,18 +471,54 @@ def load_users():
     return {}
 
 
+def _verify_password(candidate: str, stored: str) -> bool:
+    """Verify a candidate password against a stored credential string.
+
+    Supported formats:
+    - Plaintext (legacy): "secret"
+    - SHA-256 digest: "sha256$<hex-digest>"
+    """
+    if not stored:
+        return False
+    if isinstance(stored, str) and stored.startswith("sha256$"):
+        digest = hashlib.sha256((candidate or "").encode("utf-8")).hexdigest()
+        return hmac.compare_digest(digest, stored.split("$", 1)[1])
+    return hmac.compare_digest(candidate or "", str(stored))
+
+
 def authenticate(username: str, password: str):
     users = load_users()
-    # simple static admin fallback: username 'admin' with ADMIN_PASSWORD
-    if username == 'admin' and password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
+    admin_secret = os.environ.get('ADMIN_PASSWORD')
+    # Admin login is only enabled when ADMIN_PASSWORD is explicitly configured.
+    if username == 'admin' and admin_secret and _verify_password(password, admin_secret):
         return {'username': 'admin', 'role': 'admin'}
-    if username in users and users[username].get('password') == password:
-        return {'username': username, 'role': users[username].get('role', 'user')}
+    if username in users:
+        stored = users[username].get('password_hash') or users[username].get('password')
+        if _verify_password(password, stored):
+            return {'username': username, 'role': users[username].get('role', 'user')}
     return None
+
+
+def is_authenticated() -> bool:
+    return bool(st.session_state.get('user'))
 
 
 def require_role(role: str):
     return st.session_state.get('user_role') == role
+
+
+def require_admin_ui(message: str = "Admin only: sign in with an admin account.") -> bool:
+    if require_role('admin'):
+        return True
+    st.error(message)
+    return False
+
+
+def require_auth_ui(message: str = "Sign in to continue.") -> bool:
+    if is_authenticated():
+        return True
+    st.error(message)
+    return False
 
 
 def log_action(building, owner, action, due_date=None, status=None):
@@ -966,7 +1004,7 @@ def page_help():
         readme = "Unable to load instructions."
     # Streamlit will emit warnings about missing ScriptRunContext when
     # invoked outside `streamlit run`; these are harmless during tests.
-    st.markdown(f"{quickstart}{readme}", unsafe_allow_html=True)
+    st.markdown(f"{quickstart}{readme}", unsafe_allow_html=False)
 
 
 def page_upload_data():
@@ -1059,6 +1097,8 @@ def page_management():
                     st.download_button("📥 Download CSV", edited.to_csv(index=False), "esg_data.csv", "text/csv")
                 with col2:
                     if st.button("Apply Approved Changes"):
+                        if not require_admin_ui("Admin only: sign in to apply approved data changes."):
+                            st.stop()
                         # commit rows marked Approve=True
                         approver = st.session_state.get('user') or 'system'
                         for _, row in edited[edited['Approve'] == True].iterrows():
@@ -1265,15 +1305,18 @@ def page_management():
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("📥 Load Test Client Data", use_container_width=True, type="primary", key="load_test"):
-                    try:
-                        load_test_client_data()
-                        st.session_state.clients_data = load_clients_data()
-                        st.success("✅ Test Client demo data loaded successfully!")
-                        st.info("View the data in the Dashboard or Raw Data tab")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error loading demo data: {e}")
+                if require_role('admin'):
+                    if st.button("📥 Load Test Client Data", use_container_width=True, type="primary", key="load_test"):
+                        try:
+                            load_test_client_data()
+                            st.session_state.clients_data = load_clients_data()
+                            st.success("✅ Test Client demo data loaded successfully!")
+                            st.info("View the data in the Dashboard or Raw Data tab")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error loading demo data: {e}")
+                else:
+                    st.info("Admin only: sign in to load demo data")
             
             with col2:
                 if require_role('admin'):

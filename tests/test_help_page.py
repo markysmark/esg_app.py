@@ -21,4 +21,4 @@ def test_page_help_reads_readme(monkeypatch, tmp_path):
     page_help()
     assert 'text' in captured
     assert sample in captured['text']
-    assert captured['kwargs'].get('unsafe_allow_html') is True
+    assert captured['kwargs'].get('unsafe_allow_html') is False
